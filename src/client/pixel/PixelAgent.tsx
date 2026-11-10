@@ -3,12 +3,13 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { GRID, composeFrame, frameCount, type AgentKind, type AgentState } from './sprites';
 import { useI18n } from '../i18n';
 
+// 2-frame loops; 911 (hit) is the rapid 100ms pulse.
 const FRAME_MS: Record<AgentState, number> = {
-  idle: 700,
+  idle: 600,
+  talking: 280,
   researching: 350,
-  talking: 160,
-  thinking: 450,
-  hit: 120,
+  thinking: 350,
+  hit: 100,
   winner: 300,
   loser: 600,
 };
@@ -38,7 +39,12 @@ export const PixelAgent = memo(function PixelAgent({
   const { pixels, palette } = useMemo(() => composeFrame(agent, state, reduce ? 0 : frame), [agent, state, frame, reduce]);
   const name = t(`agent.${agent}`);
   return (
-    <figure className="inline-flex flex-col items-center gap-1">
+    <figure className="relative inline-flex flex-col items-center gap-1">
+      {state === 'talking' && size >= 48 && (
+        <span className="absolute -top-2 left-1/2 z-10 -translate-x-1/2 rounded bg-ink px-1.5 py-0.5 font-pixel text-[7px] tracking-wider text-white" aria-hidden>
+          SPEECH
+        </span>
+      )}
       <svg
         viewBox={`0 0 ${GRID} ${GRID}`}
         width={size}

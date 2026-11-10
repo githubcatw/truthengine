@@ -1,20 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { COSTUMES, GRID, STATE_FRAMES, composeFrame, type AgentKind, type AgentState } from '../../src/client/pixel/sprites';
+import { COSTUMES, GRID, composeFrame, framesFor, type AgentKind, type AgentState } from '../../src/client/pixel/sprites';
 import { scriptRuns } from '../../src/server/routes/reports';
 
 const AGENTS = Object.keys(COSTUMES) as AgentKind[];
-const STATES = Object.keys(STATE_FRAMES) as AgentState[];
+const STATES: AgentState[] = ['idle', 'researching', 'talking', 'thinking', 'hit', 'winner', 'loser'];
 
 describe('pixel sprites', () => {
-  it('defines all eight agents and seven states with 2–4 frames each', () => {
+  it('defines all eight agents with a 2-frame loop for every state, and the frames differ', () => {
     expect(AGENTS).toHaveLength(8);
-    expect(STATES.sort()).toEqual(['hit', 'idle', 'loser', 'researching', 'talking', 'thinking', 'winner']);
-    for (const s of STATES) expect(STATE_FRAMES[s].length).toBeGreaterThanOrEqual(2), expect(STATE_FRAMES[s].length).toBeLessThanOrEqual(4);
+    for (const a of AGENTS)
+      for (const s of STATES) {
+        expect(framesFor(a, s)).toHaveLength(2);
+        expect(JSON.stringify(composeFrame(a, s, 0).pixels), `${a}/${s}`).not.toBe(JSON.stringify(composeFrame(a, s, 1).pixels));
+      }
   });
   it('every frame stays on the 32x32 grid and uses defined colours', () => {
     for (const a of AGENTS)
       for (const s of STATES)
-        for (let f = 0; f < STATE_FRAMES[s].length; f++) {
+        for (let f = 0; f < 2; f++) {
           const { pixels, palette } = composeFrame(a, s, f);
           for (const [x, y, w, h, c] of pixels) {
             expect(x).toBeGreaterThanOrEqual(0);
