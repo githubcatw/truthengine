@@ -1,4 +1,4 @@
-// Original pixel-art agent sprites as editable data arrays on a 32x32 grid.
+// Original pixel-art agent sprites as editable data arrays on a chunky 16x16 grid.
 // Style: a large dark-framed screen head with slanted eyes and a small mouth,
 // a compact body, and a costume per agent. Every state is a 2-frame loop.
 //
@@ -21,7 +21,7 @@ export type AgentState = 'idle' | 'researching' | 'talking' | 'thinking' | 'hit'
 /** [x, y, width, height, paletteKey] */
 export type Px = readonly [number, number, number, number, string];
 
-export const GRID = 32;
+export const GRID = 16;
 
 export const BASE_PALETTE: Record<string, string> = {
   frame: '#2B2E33',
@@ -33,29 +33,30 @@ export const BASE_PALETTE: Record<string, string> = {
   shadow: '#00000018',
 };
 
-/** The shared screen head. */
+/** The shared screen head (chunky 16x16 style, matching the reference). */
 export const HEAD: Px[] = [
-  [9, 7, 14, 1, 'frame'],
-  [8, 8, 16, 11, 'frame'],
-  [9, 19, 14, 1, 'frame'],
-  [9, 8, 14, 11, 'screen'],
+  [4, 3, 8, 1, 'frame'],
+  [3, 4, 10, 6, 'frame'],
+  [4, 10, 8, 1, 'frame'],
+  [4, 4, 8, 6, 'screen'],
 ];
 
 /** Face variants (slanted eyes as in the reference sprites). */
 const EYES: Record<string, Px[]> = {
-  open: [[12, 12, 2, 2, 'eye'], [14, 13, 1, 1, 'eye'], [18, 12, 2, 2, 'eye'], [17, 13, 1, 1, 'eye']],
-  blink: [[12, 13, 3, 1, 'eye'], [17, 13, 3, 1, 'eye']],
-  up: [[12, 11, 2, 2, 'eye'], [14, 12, 1, 1, 'eye'], [18, 11, 2, 2, 'eye'], [17, 12, 1, 1, 'eye']],
-  happy: [[12, 13, 1, 1, 'eye'], [13, 12, 1, 1, 'eye'], [14, 13, 1, 1, 'eye'], [17, 13, 1, 1, 'eye'], [18, 12, 1, 1, 'eye'], [19, 13, 1, 1, 'eye']],
-  sad: [[12, 13, 2, 1, 'eye'], [14, 12, 1, 1, 'eye'], [18, 13, 2, 1, 'eye'], [17, 12, 1, 1, 'eye']],
-  x: [[12, 12, 1, 1, 'eye'], [14, 12, 1, 1, 'eye'], [13, 13, 1, 1, 'eye'], [12, 14, 1, 1, 'eye'], [14, 14, 1, 1, 'eye'], [17, 12, 1, 1, 'eye'], [19, 12, 1, 1, 'eye'], [18, 13, 1, 1, 'eye'], [17, 14, 1, 1, 'eye'], [19, 14, 1, 1, 'eye']],
+  open: [[5, 6, 2, 1, 'eye'], [6, 5, 1, 1, 'eye'], [9, 6, 2, 1, 'eye'], [9, 5, 1, 1, 'eye']],
+  blink: [[5, 6, 2, 1, 'eye'], [9, 6, 2, 1, 'eye']],
+  up: [[5, 5, 2, 1, 'eye'], [6, 4, 1, 1, 'eye'], [9, 5, 2, 1, 'eye'], [9, 4, 1, 1, 'eye']],
+  happy: [[5, 6, 1, 1, 'eye'], [6, 5, 1, 1, 'eye'], [7, 6, 1, 1, 'eye'], [9, 6, 1, 1, 'eye'], [10, 5, 1, 1, 'eye'], [11, 6, 1, 1, 'eye']],
+  sad: [[5, 6, 2, 1, 'eye'], [5, 5, 1, 1, 'eye'], [9, 6, 2, 1, 'eye'], [10, 5, 1, 1, 'eye']],
+  // '>' '<' squint for the 911 alert.
+  x: [[5, 5, 1, 1, 'eye'], [6, 6, 1, 1, 'eye'], [5, 7, 1, 1, 'eye'], [11, 5, 1, 1, 'eye'], [10, 6, 1, 1, 'eye'], [11, 7, 1, 1, 'eye']],
 };
 const MOUTHS: Record<string, Px[]> = {
-  small: [[15, 16, 2, 1, 'mouth']],
-  open: [[15, 16, 2, 2, 'mouth']],
-  smile: [[14, 16, 1, 1, 'mouth'], [15, 17, 2, 1, 'mouth'], [17, 16, 1, 1, 'mouth']],
-  frown: [[14, 17, 1, 1, 'mouth'], [15, 16, 2, 1, 'mouth'], [17, 17, 1, 1, 'mouth']],
-  o: [[15, 16, 2, 2, 'mouth']],
+  small: [[7, 8, 2, 1, 'mouth']],
+  open: [[7, 8, 2, 2, 'mouth']],
+  smile: [[6, 8, 1, 1, 'mouth'], [7, 9, 2, 1, 'mouth'], [9, 8, 1, 1, 'mouth']],
+  frown: [[6, 9, 1, 1, 'mouth'], [7, 8, 2, 1, 'mouth'], [9, 9, 1, 1, 'mouth']],
+  o: [[7, 8, 2, 2, 'mouth']],
 };
 
 export interface Frame {
@@ -90,94 +91,92 @@ export interface Costume {
   anims: Record<'idle' | 'talking' | 'reasoning' | 'hit', [Frame, Frame]>;
 }
 
-const ALERT: Px[] = [[27, 2, 2, 2, 'alert']];
+const ALERT: Px[] = [[14, 0, 2, 2, 'alert']];
 
 export const COSTUMES: Record<AgentKind, Costume> = {
   // 1. Defender — knight: silver helmet and armour, teal shield with a check mark.
   defender: {
     palette: { helmet: '#9AA3AD', armor: '#A9B1BB', plate: '#6E7888', leg: '#9AA3AD', teal: '#1E7A70', check: '#FFFFFF' },
-    back: [[24, 13, 3, 9, 'teal']],
+    back: [[13, 7, 2, 5, 'teal']],
     front: [
-      [12, 5, 8, 2, 'helmet'],
-      [14, 4, 4, 1, 'helmet'],
-      [10, 20, 12, 7, 'armor'],
-      [12, 21, 8, 4, 'plate'],
-      [11, 27, 3, 3, 'leg'],
-      [18, 27, 3, 3, 'leg'],
+      [6, 2, 4, 1, 'helmet'],
+      [7, 1, 2, 1, 'helmet'],
+      [4, 11, 8, 3, 'armor'],
+      [6, 11, 4, 2, 'plate'],
+      [5, 14, 2, 2, 'leg'],
+      [9, 14, 2, 2, 'leg'],
     ],
     accents: [],
     props: [
-      [5, 13, 5, 10, 'teal'],
-      [6, 18, 1, 1, 'check'],
-      [7, 19, 1, 1, 'check'],
-      [8, 17, 1, 2, 'check'],
+      [1, 7, 3, 6, 'teal'],
+      [1, 10, 1, 1, 'check'],
+      [2, 11, 1, 1, 'check'],
+      [3, 9, 1, 2, 'check'],
     ],
     anims: {
       idle: [{ dy: 0 }, { dy: -1 }],
       talking: [{ dy: 0, mouth: 'open' }, { dy: -1 }],
       reasoning: [{ dy: 0, eyes: 'up' }, { dy: -1, eyes: 'up' }],
-      hit: [{ dy: 0, eyes: 'x', mouth: 'o', extra: ALERT }, { dy: -2, eyes: 'x', mouth: 'o' }],
+      hit: [{ dy: 0, eyes: 'x', extra: ALERT }, { dy: -1, eyes: 'x' }],
     },
   },
 
-  // 2. Prosecutor — detective: wide brown hat, rust coat, "objection" card.
+  // 2. Prosecutor — detective: wide brown hat, rust coat, red-striped "objection" card.
   prosecutor: {
     palette: { hat: '#8A3B12', brim: '#A0461A', band: '#5A2610', coat: '#B8401C', coatLight: '#D2531F', boot: '#2B2E33', card: '#FBE3E3', cardInk: '#D62F3A' },
     back: [],
     front: [
-      [5, 6, 22, 1, 'brim'],
-      [10, 2, 12, 4, 'hat'],
-      [10, 5, 12, 1, 'band'],
-      [10, 20, 12, 8, 'coat'],
-      [13, 21, 6, 7, 'coatLight'],
-      [11, 28, 3, 2, 'boot'],
-      [18, 28, 3, 2, 'boot'],
+      [1, 2, 14, 1, 'brim'],
+      [4, 0, 8, 1, 'hat'],
+      [4, 1, 8, 1, 'band'],
+      [4, 11, 8, 4, 'coat'],
+      [6, 11, 4, 4, 'coatLight'],
+      [5, 15, 2, 1, 'boot'],
+      [9, 15, 2, 1, 'boot'],
     ],
     accents: [],
     props: [
-      [25, 15, 5, 7, 'card'],
-      [26, 16, 3, 1, 'cardInk'],
-      [26, 18, 3, 1, 'cardInk'],
-      [27, 20, 2, 1, 'cardInk'],
+      [13, 7, 3, 4, 'card'],
+      [13, 8, 2, 1, 'cardInk'],
+      [13, 10, 2, 1, 'cardInk'],
     ],
     anims: {
-      idle: [{ dy: 0 }, { dy: -2, propDx: 1 }],
-      talking: [{ dy: 0, propDx: 1, mouth: 'open' }, { dy: -2, propDx: 1 }],
-      reasoning: [{ dy: 0 }, { dy: -2 }],
-      hit: [{ dy: 0, eyes: 'x', mouth: 'o', extra: ALERT }, { dy: -3, eyes: 'x', mouth: 'o' }],
+      idle: [{ dy: 0 }, { dy: -1, propDx: 1 }],
+      talking: [{ dy: 0, propDx: 1, mouth: 'open' }, { dy: -1, propDx: 1 }],
+      reasoning: [{ dy: 0 }, { dy: -1 }],
+      hit: [{ dy: 0, eyes: 'x', extra: ALERT }, { dy: -1, eyes: 'x' }],
     },
   },
 
-  // 3. Independent Judge — white wig, black robe, raised wooden gavel.
+  // 3. Independent Judge — white wig, black robe with white collar, raised wooden gavel.
   judge: {
     palette: { wig: '#DCE0E5', wigShade: '#B9BFC7', robe: '#1B1C1F', collar: '#FFFFFF', gavel: '#8B4513', gavelHead: '#6B3410' },
     back: [
-      [6, 6, 20, 3, 'wig'],
-      [5, 9, 4, 12, 'wig'],
-      [23, 9, 4, 12, 'wig'],
-      [5, 16, 3, 3, 'wigShade'],
-      [9, 20, 14, 9, 'robe'],
+      [3, 2, 10, 2, 'wig'],
+      [2, 4, 2, 7, 'wig'],
+      [12, 4, 2, 7, 'wig'],
+      [2, 8, 1, 2, 'wigShade'],
+      [4, 11, 8, 5, 'robe'],
     ],
     front: [
-      [14, 5, 4, 1, 'wigShade'],
-      [10, 9, 12, 1, 'frame'],
-      [13, 20, 6, 2, 'collar'],
+      [7, 1, 2, 1, 'wigShade'],
+      [6, 11, 4, 1, 'collar'],
     ],
     accents: [],
     props: [
-      [24, 12, 5, 3, 'gavelHead'],
-      [26, 15, 1, 7, 'gavel'],
+      [13, 5, 3, 2, 'gavelHead'],
+      [14, 7, 1, 4, 'gavel'],
     ],
     // Gavel tilted down (striking / deliberating).
     propsAlt: [
-      [23, 15, 5, 3, 'gavelHead'],
-      [26, 18, 1, 5, 'gavel'],
+      [12, 7, 3, 2, 'gavelHead'],
+      [14, 9, 1, 3, 'gavel'],
     ],
     anims: {
       idle: [{ dy: 0 }, { dy: -1 }],
-      talking: [{ dy: 0, mouth: 'open' }, { dy: -2 }],
+      talking: [{ dy: 0, mouth: 'open' }, { dy: -1 }],
       reasoning: [{ dy: 0 }, { dy: 0, altProps: true }],
-      hit: [{ dy: 0, eyes: 'x', extra: ALERT }, { dy: -2, eyes: 'x', altProps: true }],
+      hit: [{ dy: 0, eyes: 'x', extra: ALERT }, { dy: -1, eyes: 'x', altProps: true }],
     },
   },
 
@@ -186,24 +185,24 @@ export const COSTUMES: Record<AgentKind, Costume> = {
     palette: { hat: '#8C5A12', brim: '#A06A1A', band: '#5E3C0C', brown: '#7A4512', rim: '#3A3F45', lens: '#BFE0F5' },
     back: [],
     front: [
-      [5, 6, 22, 1, 'brim'],
-      [10, 2, 12, 4, 'hat'],
-      [10, 5, 12, 1, 'band'],
-      [10, 20, 2, 9, 'brown'],
-      [20, 20, 2, 9, 'brown'],
+      [1, 2, 14, 1, 'brim'],
+      [4, 0, 8, 1, 'hat'],
+      [4, 1, 8, 1, 'band'],
+      [4, 11, 1, 5, 'brown'],
+      [11, 11, 1, 5, 'brown'],
     ],
     accents: [],
     props: [
-      [22, 14, 6, 6, 'rim'],
-      [23, 15, 4, 4, 'lens'],
-      [24, 20, 2, 3, 'brown'],
+      [12, 7, 3, 3, 'rim'],
+      [13, 8, 1, 1, 'lens'],
+      [13, 10, 1, 2, 'brown'],
     ],
     anims: {
       idle: [{ dy: 0 }, { dy: -1 }],
-      talking: [{ dy: 0, propDx: 0 }, { dy: -1, propDx: 1 }],
+      talking: [{ dy: 0 }, { dy: -1, propDx: 1 }],
       // The glass moves across the eye: from the side to over the right eye.
-      reasoning: [{ dy: 0 }, { dy: -1, propDx: -6, propDy: -4 }],
-      hit: [{ dy: 0, eyes: 'x', propDx: -2, extra: ALERT }, { dy: -2, eyes: 'x', propDx: 2, propDy: -2 }],
+      reasoning: [{ dy: 0 }, { dy: -1, propDx: -4, propDy: -3 }],
+      hit: [{ dy: 0, eyes: 'x', propDx: -1, extra: ALERT }, { dy: -1, eyes: 'x', propDx: 1, propDy: -1 }],
     },
   },
 
@@ -212,22 +211,21 @@ export const COSTUMES: Record<AgentKind, Costume> = {
     palette: { visor: '#1F8A3A', antenna: '#9AA0A6', tip: '#F2C21B', paper: '#FFFFFF', paperEdge: '#E1E5EA', marker: '#F2C21B' },
     back: [],
     front: [
-      [15, 3, 2, 3, 'antenna'],
-      [8, 6, 16, 2, 'visor'],
-      [12, 20, 8, 1, 'frame'],
+      [7, 1, 2, 2, 'antenna'],
+      [3, 3, 10, 1, 'visor'],
     ],
-    accents: [[15, 2, 2, 1, 'tip']],
+    accents: [[7, 0, 2, 1, 'tip']],
     props: [
-      [3, 16, 6, 8, 'paper'],
-      [3, 23, 6, 1, 'paperEdge'],
-      [4, 18, 3, 1, 'marker'],
-      [25, 13, 3, 6, 'marker'],
+      [0, 8, 3, 4, 'paper'],
+      [0, 11, 3, 1, 'paperEdge'],
+      [0, 9, 2, 1, 'marker'],
+      [13, 7, 2, 3, 'marker'],
     ],
     anims: {
-      idle: [{ dy: 0 }, { dy: -2, hideAccents: true }],
+      idle: [{ dy: 0 }, { dy: -1, hideAccents: true }],
       talking: [{ dy: 0, eyesDy: 0, mouth: 'open' }, { dy: -1, eyesDy: -1, hideAccents: true }],
-      reasoning: [{ dy: 0, accentDy: 0 }, { dy: -2, accentDy: 1 }],
-      hit: [{ dy: 0, dx: -1, eyes: 'x', extra: ALERT }, { dy: -2, dx: 1, eyes: 'x', hideAccents: true }],
+      reasoning: [{ dy: 0 }, { dy: -1, accentDy: 1 }],
+      hit: [{ dy: 0, dx: -1, eyes: 'x', extra: ALERT }, { dy: -1, dx: 1, eyes: 'x', hideAccents: true }],
     },
   },
 
@@ -236,49 +234,49 @@ export const COSTUMES: Record<AgentKind, Costume> = {
     palette: { antenna: '#9AA0A6', visor: '#4FC3E0', visorLight: '#A8E6F4', coat: '#F2F4F6', coatLine: '#D5DAE0', line: '#6E7888' },
     back: [],
     front: [
-      [14, 3, 4, 1, 'antenna'],
-      [15, 4, 2, 3, 'antenna'],
-      [9, 11, 14, 3, 'visor'],
-      [10, 11, 12, 1, 'visorLight'],
-      [10, 20, 12, 9, 'coat'],
-      [15, 20, 2, 9, 'coatLine'],
+      [6, 0, 4, 1, 'antenna'],
+      [7, 1, 2, 2, 'antenna'],
+      [4, 5, 8, 2, 'visor'],
+      [5, 5, 6, 1, 'visorLight'],
+      [4, 11, 8, 5, 'coat'],
+      [7, 11, 2, 5, 'coatLine'],
     ],
     // Text lines on the document pocket (they toggle and scroll while reading).
     accents: [
-      [11, 22, 3, 1, 'line'],
-      [11, 24, 3, 1, 'line'],
+      [5, 12, 1, 1, 'line'],
+      [5, 14, 1, 1, 'line'],
     ],
     props: [],
     anims: {
       idle: [{ dy: 0 }, { dy: -1 }],
       talking: [{ dy: 0 }, { dy: -1, hideAccents: true }],
-      reasoning: [{ dy: 0, accentDy: 0 }, { dy: 0, accentDy: 2 }],
-      hit: [{ dy: 0, eyes: 'x', extra: ALERT }, { dy: -2, eyes: 'x', accentDy: 2 }],
+      reasoning: [{ dy: 0, accentDy: 0 }, { dy: 0, accentDy: 1 }],
+      hit: [{ dy: 0, eyes: 'x', extra: ALERT }, { dy: -1, eyes: 'x', accentDy: 1 }],
     },
   },
 
-  // 7. Pedagogue — purple mortarboard with gold tassel, green cardigan, book and pointer.
+  // 7. Pedagogue — purple mortarboard with gold tassel, green cardigan, red book and pointer.
   pedagogue: {
     palette: { cap: '#3B2F8F', tassel: '#E3A21A', cardigan: '#1F7A4A', shirt: '#FFFFFF', bookFrame: '#B3261E', page: '#FFF0C8', pointer: '#C2701F' },
     back: [],
     front: [
-      [6, 5, 20, 2, 'cap'],
-      [11, 7, 10, 1, 'cap'],
-      [25, 6, 1, 5, 'tassel'],
-      [10, 20, 12, 9, 'cardigan'],
-      [15, 20, 2, 9, 'shirt'],
+      [2, 1, 12, 1, 'cap'],
+      [5, 2, 6, 1, 'cap'],
+      [13, 2, 1, 3, 'tassel'],
+      [4, 11, 8, 5, 'cardigan'],
+      [7, 11, 2, 5, 'shirt'],
     ],
     accents: [],
     props: [
-      [3, 19, 6, 7, 'bookFrame'],
-      [4, 20, 4, 5, 'page'],
-      [24, 11, 1, 13, 'pointer'],
+      [0, 9, 4, 4, 'bookFrame'],
+      [1, 10, 2, 2, 'page'],
+      [14, 4, 1, 9, 'pointer'],
     ],
     anims: {
       idle: [{ dy: 0 }, { dy: -1 }],
-      talking: [{ dy: 0, propDy: 0, mouth: 'open' }, { dy: -1, propDy: -2 }],
-      reasoning: [{ dy: 0, propDx: 0 }, { dy: -1, propDx: 2 }],
-      hit: [{ dy: 0, propDy: -3, eyes: 'x', extra: ALERT }, { dy: -2, propDy: -3, eyes: 'x' }],
+      talking: [{ dy: 0, propDy: 0, mouth: 'open' }, { dy: -1, propDy: -1 }],
+      reasoning: [{ dy: 0, propDx: 0 }, { dy: -1, propDx: 1 }],
+      hit: [{ dy: 0, propDy: -2, eyes: 'x', extra: ALERT }, { dy: -1, propDy: -2, eyes: 'x' }],
     },
   },
 
@@ -288,30 +286,29 @@ export const COSTUMES: Record<AgentKind, Costume> = {
     palette: { cap: '#24324A', brim: '#1A2436', body: '#5E6B7D', badge: '#E3A21A', rim: '#3A3F45', lens: '#BFE0F5', pen: '#D62F3A', sheet: '#FFFFFF', ink: '#6E7888' },
     back: [],
     front: [
-      [9, 4, 14, 3, 'cap'],
-      [8, 6, 12, 1, 'brim'],
-      [17, 10, 5, 1, 'rim'],
-      [17, 15, 5, 1, 'rim'],
-      [16, 11, 1, 4, 'rim'],
-      [22, 11, 1, 4, 'rim'],
-      [10, 20, 12, 8, 'body'],
-      [12, 22, 3, 3, 'badge'],
-      [11, 28, 3, 2, 'body'],
-      [18, 28, 3, 2, 'body'],
+      [4, 1, 8, 2, 'cap'],
+      [3, 2, 6, 1, 'brim'],
+      [8, 4, 4, 1, 'rim'],
+      [8, 8, 4, 1, 'rim'],
+      [8, 5, 1, 3, 'rim'],
+      [11, 5, 1, 3, 'rim'],
+      [4, 11, 8, 4, 'body'],
+      [5, 12, 2, 2, 'badge'],
+      [5, 15, 2, 1, 'body'],
+      [9, 15, 2, 1, 'body'],
     ],
-    accents: [[17, 11, 5, 4, 'lens']],
+    accents: [[9, 5, 2, 1, 'lens']],
     props: [
-      [4, 17, 1, 7, 'pen'],
-      [25, 16, 6, 8, 'sheet'],
-      [26, 18, 4, 1, 'ink'],
-      [26, 20, 4, 1, 'ink'],
-      [26, 22, 3, 1, 'pen'],
+      [1, 8, 1, 4, 'pen'],
+      [13, 8, 3, 5, 'sheet'],
+      [13, 9, 2, 1, 'ink'],
+      [13, 11, 2, 1, 'pen'],
     ],
     anims: {
       idle: [{ dy: 0 }, { dy: -1 }],
       talking: [{ dy: 0, mouth: 'open' }, { dy: -1 }],
       reasoning: [{ dy: 0 }, { dy: -1, propDy: -1 }],
-      hit: [{ dy: 0, eyes: 'x', extra: ALERT }, { dy: -2, eyes: 'x' }],
+      hit: [{ dy: 0, eyes: 'x', extra: ALERT }, { dy: -1, eyes: 'x' }],
     },
   },
 };
@@ -319,12 +316,12 @@ export const COSTUMES: Record<AgentKind, Costume> = {
 /** Winner and loser are shared by every agent. */
 const VERDICT_FRAMES: Record<'winner' | 'loser', [Frame, Frame]> = {
   winner: [
-    { dy: 0, eyes: 'happy', mouth: 'smile', propDy: -2, extra: [[4, 3, 1, 1, 'spark'], [27, 5, 1, 1, 'spark']] },
-    { dy: -2, eyes: 'happy', mouth: 'smile', propDy: -2, extra: [[5, 1, 1, 1, 'spark'], [26, 2, 1, 1, 'spark']] },
+    { dy: 0, eyes: 'open', mouth: 'smile', propDy: -1, extra: [[1, 1, 1, 1, 'spark'], [14, 3, 1, 1, 'spark']] },
+    { dy: -1, eyes: 'open', mouth: 'smile', propDy: -1, extra: [[2, 0, 1, 1, 'spark'], [13, 1, 1, 1, 'spark']] },
   ],
   loser: [
-    { dy: 1, eyes: 'sad', mouth: 'frown' },
     { dy: 1, eyes: 'blink', mouth: 'frown' },
+    { dy: 1, eyes: 'sad', mouth: 'frown' },
   ],
 };
 
@@ -349,7 +346,7 @@ export function composeFrame(agent: AgentKind, state: AgentState, frame: number)
   const accents = f.hideAccents ? [] : c.accents.map((p) => shift(p, 0, f.accentDy ?? 0));
   const face = [...EYES[f.eyes ?? 'open']!.map((p) => shift(p, 0, f.eyesDy ?? 0)), ...MOUTHS[f.mouth ?? 'small']!];
   const body = [...c.back, ...HEAD, ...c.front, ...accents, ...face, ...props].map((p) => shift(p, f.dx ?? 0, f.dy ?? 0));
-  const all: Px[] = [[10, 30, 12, 1, 'shadow'], ...body, ...(f.extra ?? [])];
+  const all: Px[] = [[4, 15, 8, 1, 'shadow'], ...body, ...(f.extra ?? [])];
   const clip = (p: Px): Px | null => {
     const x0 = Math.max(0, p[0]);
     const y0 = Math.max(0, p[1]);
