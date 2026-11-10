@@ -58,6 +58,7 @@ export async function loadOrCreateUser(uid: string, email: string | null, emailV
 }
 
 export async function requireAuth(req: Request, _res: Response, next: NextFunction) {
+  if (req.user) return next(); // already verified by an earlier router on this request
   try {
     const header = req.headers.authorization ?? '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;

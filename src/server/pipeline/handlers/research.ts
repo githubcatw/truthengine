@@ -17,6 +17,7 @@ import { DEEP_BUDGET_MULTIPLIER, MAX_OUTPUT_TOKENS, MODELS, RESEARCH, RESEARCH_B
 import { getCachedPage, getCachedSearch, putCachedPage, putCachedSearch } from '../../research/cache';
 import { fetchSource, type FetchOutcome, type FetchedPage } from '../../research/fetcher';
 import { buildTerms, selectPassages, type Passage } from '../../research/passages';
+import { trustedSourceFor } from '../../research/registry';
 import { normalizeWhitespace, verifyExcerpt } from '../../validation/contract';
 import { C, col, type EventInput } from '../store';
 import { loadTopic } from '../topic';
@@ -299,6 +300,7 @@ async function readLeads(
     conditionsMatch: null,
     conditionsNote: null,
     countsAsIndependent: false,
+    trustedSource: null,
   });
 
   // 1. Fetch concurrently within the page budget.
@@ -348,6 +350,8 @@ async function readLeads(
     if (page.kind === 'pdf') state.used.pdfPages += pagesRead;
     return { ref, lead, page, passages };
   });
+  const registry = new Map<string, Awaited<ReturnType<typeof trustedSourceFor>>>();
+  for (const p of prepared) registry.set(p.ref, await trustedSourceFor(hostOf(p.page.finalUrl)));
   const batches: (typeof prepared)[] = [];
   for (let i = 0; i < prepared.length; i += RESEARCH.sourcesPerAssessmentCall) batches.push(prepared.slice(i, i + RESEARCH.sourcesPerAssessmentCall));
 
@@ -363,6 +367,7 @@ async function readLeads(
             `url: ${b.page.finalUrl}`,
             `page title: ${b.page.title ?? b.lead.title ?? 'unknown'}`,
             `content type: ${b.page.kind}`,
+            ...(registry.get(b.ref) ? [`listed in the trusted-sources registry as "${registry.get(b.ref)!.name}" (${registry.get(b.ref)!.verificationStatus}); this is a preference signal only and never proves the claim`] : []),
             'PASSAGES:',
             ...b.passages.map((p) => `[${p.id}${p.page ? `, page ${p.page}` : ''}]\n${wrapUntrusted('web_page', p.text, p.id)}`),
           ].join('\n'),
@@ -396,7 +401,8 @@ async function readLeads(
       const a = out?.sources.find((s) => s.sourceRef === b.ref);
       const agentType = TRACK_AGENT[b.lead.track];
       const domain = hostOf(b.page.finalUrl);
-      const base = { ...baseRecord(b.lead), sourceUrl: b.page.finalUrl, urlOrigin: 'fetched_page' as const, domain, sourceTitle: b.page.title ?? b.lead.title };
+      const trustedSource = await trustedSourceFor(domain);
+      const base = { ...baseRecord(b.lead), sourceUrl: b.page.finalUrl, urlOrigin: 'fetched_page' as const, domain, sourceTitle: b.page.title ?? b.lead.title, trustedSource };
       if (!a) {
         // Not assessed (AI-call budget exhausted): keep as retrieved content without a verified excerpt.
         records.push({ ...base, evidenceId: '', provenanceStatus: 'fetched' });

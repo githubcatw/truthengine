@@ -49,8 +49,8 @@ claimsRouter.get(
       decision: decision.data() ?? null,
       result: result.data() ?? null,
       explanation: explanation.data() ?? null,
-      // Exercise answers are private to the student; teachers see whether they were attempted.
-      exercises: exercises.docs.map((d) => d.data()).map((e) => (isOwner ? e : { ...e, correctIndex: undefined })),
+      // The correct option is revealed only after the student has answered.
+      exercises: exercises.docs.map((d) => d.data()).map((e) => (isOwner && e.attempt ? e : { ...e, correctIndex: undefined })),
       research: analyses.docs
         .map((d) => d.data())
         .filter((a) => a.agentType === 'researcher' || a.agentType === 'triage')

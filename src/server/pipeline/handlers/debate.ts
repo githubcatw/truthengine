@@ -89,6 +89,7 @@ export function formatEvidence(evidence: EvidenceRecord[]): string {
         lines.push(`  Researcher's PROVISIONAL label: ${e.provisionalRelation}, ${e.directness ?? 'unknown'}; conditions match: ${e.conditionsMatch ?? 'unknown'}${e.conditionsNote ? ` (${e.conditionsNote})` : ''}`);
       }
       if (e.originalSourceId) lines.push(`  repeats primary source: ${e.originalSourceId} (not independent)`);
+      if (e.trustedSource) lines.push(`  listed in trusted-sources registry: ${e.trustedSource.name} (${e.trustedSource.verificationStatus}) — not proof of correctness`);
       if (e.provenanceStatus === 'retrieval_failed') lines.push(`  retrieval failed: ${e.failureReason}`);
       if (e.excerpt) lines.push(`  verified excerpt:\n${wrapUntrusted('web_page', e.excerpt, e.evidenceId)}`);
       else if (e.snippet) lines.push(`  search snippet (NOT a verified quotation):\n${wrapUntrusted('search_snippet', e.snippet, e.evidenceId)}`);

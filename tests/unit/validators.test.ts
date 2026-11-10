@@ -41,6 +41,7 @@ const ev = (id: string, patch: Partial<EvidenceRecord> = {}): EvidenceRecord => 
   conditionsMatch: true,
   conditionsNote: null,
   countsAsIndependent: true,
+  trustedSource: null,
   ...patch,
 });
 

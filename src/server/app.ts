@@ -5,7 +5,12 @@ import { AppError } from './errors';
 import { firebaseStatus, storageStatus } from './firebase';
 import { log } from './logger';
 import { claimsRouter } from './routes/claims';
+import { classroomsRouter } from './routes/classrooms';
+import { filesRouter } from './routes/files';
+import { learningRouter } from './routes/learning';
 import { meRouter } from './routes/me';
+import { platformRouter } from './routes/platform';
+import { reportsRouter } from './routes/reports';
 import { verificationsRouter } from './routes/verifications';
 import type { SetupStatus } from '../shared/schemas';
 
@@ -48,11 +53,14 @@ export function createApp() {
   app.use('/api/me', meRouter);
   app.use('/api/verifications', verificationsRouter);
   app.use('/api/claims', claimsRouter);
+  app.use('/api/files', filesRouter);
+  app.use('/api/reports', reportsRouter);
+  app.use('/api', learningRouter, classroomsRouter, platformRouter);
 
   app.use('/api', (_req, _res, next) => next(new AppError('NOT_FOUND', 'Not found.')));
 
   if (process.env.NODE_ENV === 'production') {
-    const dist = path.resolve(process.cwd(), 'dist');
+    const dist = path.resolve(process.cwd(), process.env.STATIC_DIR || 'dist');
     app.use(express.static(dist, { index: false, maxAge: '1h' }));
     app.get('*', (_req, res) => res.sendFile(path.join(dist, 'index.html')));
   }

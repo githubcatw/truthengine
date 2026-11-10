@@ -104,6 +104,8 @@ export async function createSubmission(user: AuthedUser, input: CreateSubmission
     const existing = await tx.get(subRef);
     // Duplicate-submission protection: the same idempotency key returns the same job.
     if (existing.exists) return { submissionId, jobId: existing.get('currentJobId') as string, duplicate: true };
+    // Real per-page extraction results become the first events of a document job (PART 14.3).
+    const pages = input.fileId ? (await tx.get(col(C.extractionPages).where('fileId', '==', input.fileId))).docs.map((d) => ({ id: d.id, ...d.data() })) : [];
     const commitQuota = await consumeVerificationQuota(tx, user.uid);
     const job = newJob({
       jobId,
@@ -134,7 +136,17 @@ export async function createSubmission(user: AuthedUser, input: CreateSubmission
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(jobRef(jobId), { ...job, createdAt: FieldValue.serverTimestamp(), startedAt: FieldValue.serverTimestamp() });
-    writeEventsInTx(tx, jobId, user.uid, 0, [{ type: 'job_status', summary: null, data: { status: 'queued' } }]);
+    const pageEvents = (pages as Array<{ id: string; pageNumber: number; status: string; method: string; warning: string | null; charCount: number }>)
+      .sort((a, b) => a.pageNumber - b.pageNumber)
+      .map((p) => ({
+        type: 'extraction_page' as const,
+        agentType: 'content_extractor',
+        ref: { collection: 'extractionPages' as const, id: p.id },
+        groupId: 'extraction',
+        summary: `Page ${p.pageNumber}: ${p.status} (${p.method}, ${p.charCount} characters)${p.warning ? ` — ${p.warning}` : ''}`,
+        data: { pageNumber: p.pageNumber, status: p.status },
+      }));
+    writeEventsInTx(tx, jobId, user.uid, 0, [{ type: 'job_status', summary: null, data: { status: 'queued' } }, ...pageEvents]);
     return { submissionId, jobId, duplicate: false };
   });
 }

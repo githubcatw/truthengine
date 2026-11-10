@@ -179,6 +179,8 @@ export const EvidenceRecordSchema = z.object({
   conditionsNote: z.string().nullable(),
   /** True when this record is not independent (repeats another source or exceeds the per-domain cap). */
   countsAsIndependent: z.boolean(),
+  /** Listed in the trusted-sources registry. A preference signal only, never proof of correctness. */
+  trustedSource: z.object({ sourceId: z.string(), name: z.string(), verificationStatus: z.enum(['unverified', 'verified_by_admin']) }).nullable(),
 });
 export type EvidenceRecord = z.infer<typeof EvidenceRecordSchema>;
 
