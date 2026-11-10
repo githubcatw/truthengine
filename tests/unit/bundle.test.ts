@@ -4,6 +4,7 @@ import { execSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { FIXTURE_MARKER } from '../helpers/mockGemini';
+import { FAKE_MARKER } from '../helpers/fakeGemini';
 
 const root = path.resolve(__dirname, '../..');
 const FAKE_KEY = 'AIza' + 'q'.repeat(35);
@@ -29,6 +30,8 @@ describe('built client bundle', () => {
   it('contains no test fixtures or mocked client', () => {
     expect(bundle).not.toContain(FIXTURE_MARKER);
     expect(bundle).not.toContain('mockGemini');
+    expect(bundle).not.toContain(FAKE_MARKER);
+    expect(bundle).not.toContain('fakeGemini');
   });
 
   it('contains no Gemini key or server-only code', () => {
