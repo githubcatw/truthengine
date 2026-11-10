@@ -88,7 +88,6 @@ export const PIPELINE = {
   stageLeaseMs: 4 * 60_000,
   retryBaseDelayMs: 5_000,
   maxStageMs: 4 * 60_000,
-  maxJobMs: 45 * 60_000,
   /** No advance call for this long and no live lease → the job is reported as paused. */
   pauseAfterIdleMs: 45_000,
   defaultMaxClaims: num('MAX_CLAIMS_PER_SUBMISSION', 5),
