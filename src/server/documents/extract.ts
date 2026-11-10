@@ -1,3 +1,4 @@
+import '../polyfills';
 // Content Extractor (PART 7.1 / 8.1): explicit handling per format. Never adds
 // content that is not in the file; unreadable pages are recorded, not omitted.
 import { OcrOutputSchema } from '../../shared/agents';

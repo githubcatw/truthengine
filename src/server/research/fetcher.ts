@@ -1,3 +1,4 @@
+import '../polyfills';
 // Server-side page/PDF retrieval (PART 9.1 step 3, layer A). An HTTP 200 only
 // proves that a page was returned; it never makes a source credible.
 import { lookup } from 'node:dns/promises';

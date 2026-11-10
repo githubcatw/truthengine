@@ -17,6 +17,10 @@ export interface Scenario {
   badLock?: { agent: 'triage' | 'judge'; times: number };
   /** Judge cites a non-verified evidence ID as decisive on the first call. */
   judgeCitesUnverifiedOnce?: boolean;
+  /** OCR: page numbers to report as unreadable. */
+  unreadablePages?: number[];
+  /** Audit candidates returned by the auditor (passages must exist in the document). */
+  audit?: { unsourcedFigure?: string; referenceUrl?: { passage: string; url: string } };
 }
 
 const json = (v: unknown): GenerateResult => ({ text: JSON.stringify(v), groundingSources: [], webSearchQueries: [] });
@@ -236,7 +240,24 @@ export function fakeGemini(scenario: Scenario = {}): GeminiClient & { calls: Gen
         });
       }
       if (sys.includes('Quality and Citation Auditor')) {
-        return json({ references: [], quotations: [], unsourcedFigures: [], contradictions: [], editorial: [] });
+        const a = scenario.audit ?? {};
+        return json({
+          references: a.referenceUrl ? [{ passage: a.referenceUrl.passage, kind: 'url', citationText: a.referenceUrl.url, doi: null, url: a.referenceUrl.url }] : [],
+          quotations: [],
+          unsourcedFigures: a.unsourcedFigure ? [{ passage: a.unsourcedFigure, explanation: 'A specific figure is given without a source.' }] : [],
+          contradictions: [],
+          editorial: [],
+        });
+      }
+      if (sys.includes('You are the Content Extractor')) {
+        const pages = [...p.matchAll(/pages ([\d, ]+) of the attached PDF/g)][0]?.[1]?.split(',').map((x) => Number(x.trim())) ?? [1];
+        return json({
+          detectedLanguage: 'en',
+          pages: pages.map((n) => {
+            const bad = scenario.unreadablePages?.includes(n);
+            return { pageNumber: n, text: bad ? '' : `Scanned page ${n} says the harbour was dredged in the early spring.`, readable: !bad, warning: bad ? 'The scan is too blurry to read.' : null };
+          }),
+        });
       }
       throw new Error(`fakeGemini: unhandled request (${sys.slice(0, 60)})`);
     },

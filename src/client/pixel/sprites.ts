@@ -309,6 +309,17 @@ export function composeFrame(agent: AgentKind, state: AgentState, frame: number)
   const lift = (p: Px): Px => (spec.armsUp && p[1] >= 17 && (p[0] < 10 || p[0] > 21) ? [p[0], p[1] - 5, p[2], p[3], p[4]] : p);
   const base = BASE.map((p) => (spec.armsUp && (p === BASE[9] || p === BASE[10]) ? ([p[0], p[1] - 5, p[2], p[3], p[4]] as Px) : p));
   const move = (p: Px): Px => [p[0] + (spec.dx ?? 0), p[1] + (p[4] === 'shadow' ? 0 : (spec.dy ?? 0)), p[2], p[3], p[4]];
-  const pixels = [...costume.back, ...base, ...costume.front, ...costume.props.map(lift), ...spec.eyes, ...spec.mouth, ...(spec.extra ?? [])].map(move);
+  // Clip to the grid so state offsets (hit, loser) never draw outside it.
+  const clip = (p: Px): Px | null => {
+    const x0 = Math.max(0, p[0]);
+    const y0 = Math.max(0, p[1]);
+    const x1 = Math.min(GRID, p[0] + p[2]);
+    const y1 = Math.min(GRID, p[1] + p[3]);
+    return x1 > x0 && y1 > y0 ? [x0, y0, x1 - x0, y1 - y0, p[4]] : null;
+  };
+  const pixels = [...costume.back, ...base, ...costume.front, ...costume.props.map(lift), ...spec.eyes, ...spec.mouth, ...(spec.extra ?? [])]
+    .map(move)
+    .map(clip)
+    .filter((p): p is Px => p !== null);
   return { pixels, palette };
 }
