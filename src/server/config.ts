@@ -2,10 +2,12 @@
 // Secrets are read from process.env on the server only and never exported raw.
 
 export const MODELS = {
-  // Verify these names against the current Gemini model list in your project;
-  // override with GEMINI_MODEL_FAST / GEMINI_MODEL_JUDGE if they differ.
-  fast: process.env.GEMINI_MODEL_FAST || 'gemini-2.5-flash',
-  judge: process.env.GEMINI_MODEL_JUDGE || 'gemini-2.5-pro',
+  // Fast model for extraction, triage, research and debate steps (stable, GA).
+  fast: process.env.GEMINI_MODEL_FAST || 'gemini-3.8-flash',
+  // Strongest model, used only for the Judge. No stable Pro text model is
+  // published yet; 3.1 Pro is the newest Pro and is still a preview, so it can
+  // change or be retired. Override with GEMINI_MODEL_JUDGE when a stable one ships.
+  judge: process.env.GEMINI_MODEL_JUDGE || 'gemini-3.1-pro-preview',
 } as const;
 
 /** Low randomness for extraction, research and the Judge (PART 0.5 rule 8). */

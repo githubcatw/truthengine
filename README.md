@@ -27,7 +27,7 @@ Not built yet: authentication, verification, and the rest of the features in the
    - The `VITE_FIREBASE_*` values are the public Firebase web config.
 3. Run `npm run dev`. The client runs on port 5173 and the API on port 3000.
 
-Model names (`gemini-2.5-flash` and `gemini-2.5-pro` by default) are in `src/server/config.ts`. Verify that they exist for your key, or override them with `GEMINI_MODEL_FAST` and `GEMINI_MODEL_JUDGE`.
+Model names are in `src/server/config.ts`. The defaults are `gemini-3.8-flash` for extraction, triage, research and debate, and `gemini-3.1-pro-preview` for the Judge only. The Judge model is a preview, because no stable Pro text model is published yet. When one ships, override it with `GEMINI_MODEL_JUDGE`, or override the fast model with `GEMINI_MODEL_FAST`.
 
 ## Tests
 
