@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { VerdictSchema, isVerdictBasisConsistent, VerdictBasisSchema } from '../src/shared/schemas';
+import { VerdictSchema, isVerdictBasisConsistent, VerdictBasisSchema } from '../../src/shared/schemas';
 
 describe('binary verdict', () => {
   it('accepts only CORRECT and WRONG', () => {

@@ -1,0 +1,38 @@
+rules_version = '2';
+// Direct client access is read-only and limited to what the browser subscribes
+// to in realtime: the user's own job document, its events and stage runs, and
+// the user's notifications. Every write goes through the server (Admin SDK),
+// which performs its own token, ownership and classroom checks.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function ownsJob(jobId) {
+      return signedIn() &&
+        get(/databases/$(database)/documents/verificationJobs/$(jobId)).data.userId == request.auth.uid;
+    }
+
+    match /verificationJobs/{jobId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+      match /events/{seq} {
+        allow read: if ownsJob(jobId);
+        allow write: if false;
+      }
+      match /stageRuns/{stageKey} {
+        allow read: if ownsJob(jobId);
+        allow write: if false;
+      }
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Everything else (claims, evidence, debates, verdicts, roles, ...) is
+    // server-only: clients read it through the authorized REST API.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

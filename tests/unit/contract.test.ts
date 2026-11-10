@@ -8,8 +8,8 @@ import {
   resolveUrlOrigin,
   topicLockError,
   verifyExcerpt,
-} from '../src/server/validation/contract';
-import { wrapUntrusted } from '../src/server/ai/untrusted';
+} from '../../src/server/validation/contract';
+import { wrapUntrusted } from '../../src/server/ai/untrusted';
 
 describe('rule 1: no evidence, no argument', () => {
   const known = new Set(['E1', 'E2']);

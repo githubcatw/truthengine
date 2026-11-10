@@ -4,7 +4,7 @@
 import type { z } from 'zod';
 import { AI_LIMITS } from '../config';
 import { AppError } from '../errors';
-import type { GeminiClient, GenerateRequest } from './gemini';
+import type { GeminiClient, GenerateRequest, InlinePart } from './gemini';
 import { UNTRUSTED_RULES } from './untrusted';
 
 export interface StructuredCallOptions<T extends z.ZodTypeAny> {
@@ -15,6 +15,11 @@ export interface StructuredCallOptions<T extends z.ZodTypeAny> {
   prompt: string;
   temperature: number;
   maxOutputTokens?: number;
+  inline?: InlinePart[];
+  /** Repeated in the repair prompt (the topic-lock block, PART 11.1 rule 2). */
+  repairContext?: string;
+  /** Shared per-stage counter so AI calls are tracked (PART 10.5 rule 7). */
+  counter?: { aiCalls: number };
   /** Extra deterministic checks after Zod (e.g. topic lock, evidence IDs). Return an error string or null. */
   postValidate?: (value: z.infer<T>) => string | null;
 }
@@ -64,6 +69,7 @@ export async function callStructured<T extends z.ZodTypeAny>(
     prompt: opts.prompt,
     temperature: opts.temperature,
     maxOutputTokens: opts.maxOutputTokens,
+    inline: opts.inline,
     json: true,
   };
 
@@ -75,10 +81,11 @@ export async function callStructured<T extends z.ZodTypeAny>(
         ? base
         : {
             ...base,
-            prompt: `${opts.prompt}\n\nYOUR PREVIOUS OUTPUT WAS REJECTED: ${problem}\nReturn corrected JSON that satisfies the required schema. Do not add information that is not in the inputs.`,
+            prompt: `${opts.prompt}\n\nYOUR PREVIOUS OUTPUT WAS REJECTED: ${problem}\n${opts.repairContext ? `${opts.repairContext}\n` : ''}Return corrected JSON that satisfies the required schema. Do not add information that is not in the inputs.`,
           };
     const result = await opts.client.generate(req);
     aiCalls++;
+    if (opts.counter) opts.counter.aiCalls++;
     const outcome = check(result.text, opts.schema, opts.postValidate);
     if (outcome.ok) return { value: outcome.value, aiCalls, repaired: attempt > 0 };
     problem = outcome.problem;

@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AddressInfo } from 'node:net';
-import { createApp } from '../src/server/app';
-import { createGeminiClient } from '../src/server/ai/gemini';
-import { redact } from '../src/server/logger';
+import { createApp } from '../../src/server/app';
+import { createGeminiClient } from '../../src/server/ai/gemini';
+import { redact } from '../../src/server/logger';
 
 const FAKE_KEY = 'AIza' + 'x'.repeat(35);
 

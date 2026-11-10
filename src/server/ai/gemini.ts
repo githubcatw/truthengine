@@ -6,6 +6,14 @@ import { AppError } from '../errors';
 export interface GroundingSource {
   uri: string;
   title: string | null;
+  /** Text segments the grounding metadata attributes to this source. A lead, never a quotation. */
+  snippets: string[];
+}
+
+export interface InlinePart {
+  mimeType: string;
+  /** base64 data */
+  data: string;
 }
 
 export interface GenerateRequest {
@@ -15,9 +23,10 @@ export interface GenerateRequest {
   prompt: string;
   temperature: number;
   maxOutputTokens?: number;
-  /** Ask for JSON output. Cannot be combined with googleSearch on some models (PART 9.1). */
+  /** Ask for JSON output. Never combined with googleSearch (kept as separate calls, PART 9.1). */
   json?: boolean;
   googleSearch?: boolean;
+  inline?: InlinePart[];
 }
 
 export interface GenerateResult {
@@ -35,17 +44,22 @@ export interface GeminiClient {
 function classifyError(err: unknown): AppError {
   const status = (err as { status?: number })?.status;
   const message = String((err as Error)?.message ?? '');
-  if (status === 400 && /api key/i.test(message)) {
-    return new AppError('GEMINI_INVALID_KEY', 'The Gemini API key was rejected. Check the server Secrets configuration.');
-  }
-  if (status === 401 || status === 403) {
+  if ((status === 400 && /api key/i.test(message)) || status === 401 || status === 403) {
     return new AppError('GEMINI_INVALID_KEY', 'The Gemini API key was rejected. Check the server Secrets configuration.');
   }
   if (status === 429) {
     return new AppError('GEMINI_QUOTA_EXHAUSTED', 'The Gemini quota is exhausted. Existing data is preserved; try again later.');
   }
+  if (status === 404) {
+    return new AppError('INTERNAL', 'The configured Gemini model was not found. Check GEMINI_MODEL_FAST / GEMINI_MODEL_JUDGE.', { status });
+  }
+  if ((err as Error)?.name === 'TimeoutError' || (err as Error)?.name === 'AbortError') {
+    return new AppError('INTERNAL', 'The AI service did not respond in time.', { timeout: true });
+  }
   return new AppError('INTERNAL', 'The AI service request failed.', { status });
 }
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function createGeminiClient(): GeminiClient {
   const apiKey = readGeminiKey();
@@ -57,33 +71,58 @@ export function createGeminiClient(): GeminiClient {
   }
   const ai = new GoogleGenAI({ apiKey });
 
+  async function once(req: GenerateRequest): Promise<GenerateResult> {
+    const parts: Array<{ text: string } | { inlineData: InlinePart }> = [
+      ...(req.inline ?? []).map((p) => ({ inlineData: p })),
+      { text: req.prompt },
+    ];
+    const response = await ai.models.generateContent({
+      model: req.model,
+      contents: [{ role: 'user', parts }],
+      config: {
+        systemInstruction: req.systemInstruction,
+        temperature: req.temperature,
+        maxOutputTokens: req.maxOutputTokens,
+        responseMimeType: req.json ? 'application/json' : undefined,
+        tools: req.googleSearch ? [{ googleSearch: {} }] : undefined,
+        abortSignal: AbortSignal.timeout(AI_LIMITS.requestTimeoutMs),
+      },
+    });
+    const meta = response.candidates?.[0]?.groundingMetadata;
+    const chunks = meta?.groundingChunks ?? [];
+    const sources: GroundingSource[] = chunks.map((c) => ({
+      uri: c.web?.uri ?? '',
+      title: c.web?.title ?? null,
+      snippets: [],
+    }));
+    for (const support of meta?.groundingSupports ?? []) {
+      const text = support.segment?.text?.trim();
+      if (!text) continue;
+      for (const idx of support.groundingChunkIndices ?? []) {
+        const s = sources[idx];
+        if (s && s.snippets.length < 3) s.snippets.push(text);
+      }
+    }
+    return {
+      text: response.text ?? '',
+      groundingSources: sources.filter((s) => s.uri),
+      webSearchQueries: meta?.webSearchQueries ?? [],
+    };
+  }
+
   return {
     async generate(req) {
-      try {
-        const response = await ai.models.generateContent({
-          model: req.model,
-          contents: req.prompt,
-          config: {
-            systemInstruction: req.systemInstruction,
-            temperature: req.temperature,
-            maxOutputTokens: req.maxOutputTokens,
-            responseMimeType: req.json ? 'application/json' : undefined,
-            tools: req.googleSearch ? [{ googleSearch: {} }] : undefined,
-            abortSignal: AbortSignal.timeout(AI_LIMITS.requestTimeoutMs),
-          },
-        });
-        const meta = response.candidates?.[0]?.groundingMetadata;
-        const groundingSources: GroundingSource[] = (meta?.groundingChunks ?? [])
-          .map((c) => c.web)
-          .filter((w): w is NonNullable<typeof w> => Boolean(w?.uri))
-          .map((w) => ({ uri: w.uri as string, title: w.title ?? null }));
-        return {
-          text: response.text ?? '',
-          groundingSources,
-          webSearchQueries: meta?.webSearchQueries ?? [],
-        };
-      } catch (err) {
-        throw classifyError(err);
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await once(req);
+        } catch (err) {
+          const classified = err instanceof AppError ? err : classifyError(err);
+          if (classified.code === 'GEMINI_QUOTA_EXHAUSTED' && attempt < AI_LIMITS.rateLimitRetries) {
+            await sleep(AI_LIMITS.rateLimitBaseDelayMs * 2 ** attempt);
+            continue;
+          }
+          throw classified;
+        }
       }
     },
   };
@@ -94,4 +133,9 @@ let singleton: GeminiClient | null = null;
 export function getGeminiClient(): GeminiClient {
   singleton ??= createGeminiClient();
   return singleton;
+}
+
+/** Test hook: inject a mocked client. Only called from /tests. */
+export function setGeminiClientForTests(client: GeminiClient | null): void {
+  singleton = client;
 }
