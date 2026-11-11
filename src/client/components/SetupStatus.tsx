@@ -51,7 +51,7 @@ export function SetupPanel() {
         <li key={label} className="flex gap-2">
           {s.configured ? <CheckCircle2 className="h-4 w-4 text-correct" aria-hidden /> : <AlertTriangle className="h-4 w-4 text-wrong" aria-hidden />}
           <span>
-            {label}: {s.configured ? t('setup.configured') : t('setup.missing')}
+            {label}{t('punct.label')}{s.configured ? t('setup.configured') : t('setup.missing')}
             {s.message && <span className="block text-muted">{s.message}</span>}
           </span>
         </li>

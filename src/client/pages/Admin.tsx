@@ -115,7 +115,7 @@ export default function Admin() {
             <>
               {perf.jobs.avgMs !== null && (
                 <p className="mb-3 text-sm">
-                  {perf.jobs.count} · {t('admin.perf.avg')}: {formatDuration(perf.jobs.avgMs)} · {t('admin.perf.max')}: {formatDuration(perf.jobs.maxMs ?? 0)}
+                  {perf.jobs.count} · {t('admin.perf.avg')}{t('punct.label')}{formatDuration(perf.jobs.avgMs)} · {t('admin.perf.max')}{t('punct.label')}{formatDuration(perf.jobs.maxMs ?? 0)}
                 </p>
               )}
               <div className="overflow-x-auto">

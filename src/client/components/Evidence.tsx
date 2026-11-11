@@ -56,7 +56,7 @@ export function EvidenceDetails({ e }: { e: EvidenceRecord }) {
         <dl className="grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
           {(['credibility', 'currency', 'methodology', 'independence', 'relevance'] as const).map((k) => (
             <div key={k}>
-              <dt className="inline font-medium">{t(`quality.${k}`)}: </dt>
+              <dt className="inline font-medium">{t(`quality.${k}`)}{t('punct.label')}</dt>
               <dd className="inline">
                 {t(`quality.${q[k].rating}`)} — <span className="text-muted">{q[k].rationale}</span>
               </dd>
@@ -66,7 +66,7 @@ export function EvidenceDetails({ e }: { e: EvidenceRecord }) {
       )}
       {e.provisionalRelation && (
         <p className="text-xs">
-          {t('ev.provisional')}: {t(`relation.${e.provisionalRelation}`)}
+          {t('ev.provisional')}{t('punct.label')}{t(`relation.${e.provisionalRelation}`)}
           {e.directness && `, ${t(`directness.${e.directness}`)}`}
           {e.conditionsMatch === false && <span className="text-prosecutor"> · {t('ev.conditionsMismatch')}</span>}
           {e.conditionsNote && <span className="text-muted"> ({e.conditionsNote})</span>}

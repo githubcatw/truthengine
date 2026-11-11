@@ -193,7 +193,7 @@ export default function InvestigationStage({
         {/* Speed control only for replays: a live session follows the real pace. */}
         {finished && (
           <>
-            <span className="ml-1 text-muted">{t('anim.speed')}:</span>
+            <span className="ml-1 text-muted">{t('anim.speed')}{t('punct.label')}</span>
             {([1, 2, 4] as const).map((s) => (
               <button key={s} className={`rounded border px-2 py-1 ${speed === s ? 'border-navy text-navy' : 'border-rule bg-white'}`} onClick={() => setSpeed(s)}>
                 {s}x
@@ -329,7 +329,7 @@ export default function InvestigationStage({
           {shown.map((e) => (
             <li key={e.seq} className="border-b border-rule/60 pb-1">
               <span className="mr-2 font-pixel text-[8px] text-muted">#{e.seq}</span>
-              {e.agentType && <span className="mr-1 font-medium">{t(`agent.${e.agentType}` as never)}:</span>}
+              {e.agentType && <span className="mr-1 font-medium">{t(`agent.${e.agentType}` as never)}{t('punct.label')}</span>}
               {describeEvent(e, t, claimNumber)}
             </li>
           ))}

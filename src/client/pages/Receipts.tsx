@@ -38,7 +38,7 @@ export default function Receipts() {
               </Link>
             </div>
             <p className="mt-2 break-all font-mono text-xs">
-              {t('receipts.hash')}: {r.hash}
+              {t('receipts.hash')}{t('punct.label')}{r.hash}
             </p>
             <p className="mt-1 text-xs text-muted">{t('receipts.created', { date: formatDate(r.createdAtMs) })}</p>
             <div className="mt-2 flex items-center gap-3">

@@ -32,3 +32,12 @@ describe('research log text', () => {
     expect(eventExtras({ type: 'research_log', data: failed } as never).url).toBe(failed.url);
   });
 });
+
+describe('Armenian punctuation', () => {
+  it('introduces labels with ՝ and never uses an ASCII colon as a separator', () => {
+    expect(hy['punct.label']).toBe('՝ ');
+    expect(en['punct.label']).toBe(': ');
+    const offenders = Object.entries(hy).filter(([, v]) => /:\s/.test(v)).map(([k]) => k);
+    expect(offenders).toEqual([]);
+  });
+});

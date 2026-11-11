@@ -68,7 +68,7 @@ export function ClaimCards({
             <span className="font-pixel text-[10px] text-navy">{t('inv.overview')}</span>
             <span className="text-sm">{t('inv.overview.text')}</span>
             <span className="mt-auto text-xs text-muted">
-              {jobStages.map((s) => `${stepLabel(t, s.stageKey)}: ${t(`stage.status.${s.status}`)}`).join(' · ')}
+              {jobStages.map((s) => `${stepLabel(t, s.stageKey)}${t('punct.label')}${t(`stage.status.${s.status}`)}`).join(' · ')}
             </span>
           </>,
           overviewRunning,

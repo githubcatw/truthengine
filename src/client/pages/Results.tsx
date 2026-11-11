@@ -124,7 +124,7 @@ function ArgumentMap({ report }: { report: Report }) {
       })}
       {finals.map((f) => (
         <li key={f.messageId} className="border-t border-rule pt-2">
-          <span className={f.agentType === 'defender' ? 'text-defender' : 'text-prosecutor'}>{t(`agent.${f.agentType}`)}</span> — {t('msg.final_position')}: {f.content}
+          <span className={f.agentType === 'defender' ? 'text-defender' : 'text-prosecutor'}>{t(`agent.${f.agentType}`)}</span> — {t('msg.final_position')}{t('punct.label')}{f.content}
         </li>
       ))}
     </ul>
@@ -311,7 +311,7 @@ export default function Results() {
                   {f.passageB && <mark className="mt-1 block bg-prosecutor/10 px-1">“{f.passageB}”</mark>}
                   <p className="mt-2">{f.explanation}</p>
                   <p className="mt-1 text-xs text-muted">
-                    {t('res.audit.check')}: {f.check.performed} — {f.check.result}
+                    {t('res.audit.check')}{t('punct.label')}{f.check.performed} — {f.check.result}
                   </p>
                   {f.offerAsClaim && !report.readOnly && (
                     <Button
@@ -447,7 +447,7 @@ export default function Results() {
               </div>
               {decision.acceptedArgumentIds.length > 0 && (
                 <p>
-                  <span className="font-medium">{t('res.accepted')}: </span>
+                  <span className="font-medium">{t('res.accepted')}{t('punct.label')}</span>
                   {decision.acceptedArgumentIds.join(', ')}
                 </p>
               )}
@@ -457,7 +457,7 @@ export default function Results() {
                   <ul className="mt-1 space-y-1">
                     {decision.rejectedArguments.map((r) => (
                       <li key={r.argumentId}>
-                        <span className="font-pixel text-[9px]">{r.argumentId}</span> — {r.reason}: {r.note}
+                        <span className="font-pixel text-[9px]">{r.argumentId}</span> — {t(`reject.${r.reason}` as StringKey)}{t('punct.label')}{r.note}
                       </li>
                     ))}
                   </ul>
@@ -491,7 +491,7 @@ export default function Results() {
                   {report.explanation.fallacies.map((f, i) => (
                     <li key={i}>
                       <strong>{f.name}</strong>
-                      {f.argumentId && <span className="ml-1 font-pixel text-[9px]">({f.argumentId})</span>}: {f.explanation}
+                      {f.argumentId && <span className="ml-1 font-pixel text-[9px]">({f.argumentId})</span>}{t('punct.label')}{f.explanation}
                     </li>
                   ))}
                 </ul>
@@ -530,7 +530,7 @@ export default function Results() {
             const d = { ...(l.details ?? {}), failureReason: l.failureReason } as Record<string, any>;
             return (
               <li key={l.logId} className="border-b border-rule/60 pb-1.5">
-                <span className="font-medium">{t(`agent.${l.agentType}` as StringKey)}</span>: {describeResearch(d, t, `${l.queryOrUrl} — ${l.resultSummary}`)}
+                <span className="font-medium">{t(`agent.${l.agentType}` as StringKey)}</span>{t('punct.label')}{describeResearch(d, t, `${l.queryOrUrl} — ${l.resultSummary}`)}
                 {Array.isArray(d.sites) && d.sites.length > 0 && (
                   <span className="mt-1 flex flex-wrap gap-1">
                     {(d.sites as string[]).map((site) => (

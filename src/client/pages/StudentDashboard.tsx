@@ -35,7 +35,7 @@ function ClassroomAssignments({ c }: { c: Classroom }) {
         <li key={a.assignmentId} className="rounded border border-rule bg-white p-3 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-medium">{a.title}</span>
-            {a.dueAtMs && <span className="text-xs text-muted">{t('class.assignment.due')}: {formatDate(a.dueAtMs)}</span>}
+            {a.dueAtMs && <span className="text-xs text-muted">{t('class.assignment.due')}{t('punct.label')}{formatDate(a.dueAtMs)}</span>}
           </div>
           {a.instructions && <p className="mt-1 text-muted">{a.instructions}</p>}
           <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -78,7 +78,7 @@ export default function StudentDashboard() {
       <PageTitle>{t('student.title')}</PageTitle>
       {progress && <p className="text-sm">{t('learn.progress', { done: progress.exercisesAnswered, correct: progress.exercisesCorrect })}</p>}
       <p className="mt-2 flex items-center gap-2 text-sm">
-        {t('student.verdicts')}: <VerdictBadge verdict="CORRECT" /> {verdicts.CORRECT} <VerdictBadge verdict="WRONG" /> {verdicts.WRONG}
+        {t('student.verdicts')}{t('punct.label')}<VerdictBadge verdict="CORRECT" /> {verdicts.CORRECT} <VerdictBadge verdict="WRONG" /> {verdicts.WRONG}
       </p>
       <Section title={t('student.join')}>
         <form

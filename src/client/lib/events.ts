@@ -148,7 +148,7 @@ export function describeEvent(e: InvestigationEvent, t: T, claimNumber?: (id: st
     case 'stage_completed':
       return `${stageLabel(t, e.stageKey, claimNumber)} — ${d.skipped ? t('stage.status.skipped') : t('stage.status.completed')}${typeof d.durationMs === 'number' ? ` (${(d.durationMs / 1000).toFixed(1)}s)` : ''}`;
     case 'stage_failed':
-      return `${stageLabel(t, e.stageKey, claimNumber)} — ${t('stage.status.failed')}: ${d.code ? t(`error.${d.code}` as StringKey) : (e.summary ?? '')}`;
+      return `${stageLabel(t, e.stageKey, claimNumber)} — ${t('stage.status.failed')}${t('punct.label')}${d.code ? t(`error.${d.code}` as StringKey) : (e.summary ?? '')}`;
     case 'job_status': {
       if (d.status === 'paused') return t('inv.paused');
       if (d.status === 'processing') return t('inv.resumed');
@@ -161,7 +161,7 @@ export function describeEvent(e: InvestigationEvent, t: T, claimNumber?: (id: st
     case 'research_log':
       return describeResearch(d, t, e.summary);
     case 'quality_finding':
-      return `${t(`finding.${d.kind}` as StringKey)}: ${(e.summary ?? '').split(': ').slice(1).join(': ')}`;
+      return `${t(`finding.${d.kind}` as StringKey)}${t('punct.label')}${(e.summary ?? '').split(': ').slice(1).join(': ')}`;
     case 'extraction_page': {
       const status = { extracted: 'upload.page.ok', ocr: 'upload.page.ocr', failed: 'upload.page.failed', skipped: 'upload.page.skipped' }[d.status as string] as StringKey | undefined;
       return `${t('upload.page', { n: d.pageNumber })}: ${status ? t(status) : d.status}`;
@@ -171,7 +171,8 @@ export function describeEvent(e: InvestigationEvent, t: T, claimNumber?: (id: st
     case 'judge_decision':
       return t('anim.chooses', { side: t(d.winner === 'DEFENDER' ? 'agent.defender' : 'agent.prosecutor'), reason: e.summary ?? '' });
     case 'debate_message': {
-      const label = d.messageType === 'challenge' ? `${t('anim.challenging', { id: d.referencedArgumentIds?.[0] ?? '' })}: ` : d.messageType === 'response' ? `${t('anim.responding', { id: d.referencedArgumentIds?.[0] ?? '' })}: ` : d.argumentId ? `${d.argumentId}: ` : '';
+      const sep = t('punct.label');
+      const label = d.messageType === 'challenge' ? `${t('anim.challenging', { id: d.referencedArgumentIds?.[0] ?? '' })}${sep}` : d.messageType === 'response' ? `${t('anim.responding', { id: d.referencedArgumentIds?.[0] ?? '' })}${sep}` : d.argumentId ? `${d.argumentId}${sep}` : '';
       return `${label}${e.summary ?? ''}`;
     }
     default:

@@ -69,17 +69,17 @@ export function ClaimChecklist({ view, onConfirmed }: { view: JobView; onConfirm
                     onChange={(e) => setTexts((s) => ({ ...s, [c.claimId]: e.target.value }))}
                   />
                   <span className="block text-xs text-muted">
-                    {t('inv.original')}: “{c.originalText}”
+                    {t('inv.original')}{t('punct.label')}“{c.originalText}”
                     {pageNumber(c.context?.sourceLocation) && <> · {t('upload.page', { n: pageNumber(c.context?.sourceLocation)! })}</>}
                   </span>
                   {c.splitFrom && (
                     <span className="block text-xs text-muted">
-                      {t('inv.splitFrom')}: “{c.splitFrom}”
+                      {t('inv.splitFrom')}{t('punct.label')}“{c.splitFrom}”
                     </span>
                   )}
                   {c.ambiguityNote && (
                     <span className="block text-xs text-prosecutor">
-                      {t('inv.ambiguity')}: {c.ambiguityNote}
+                      {t('inv.ambiguity')}{t('punct.label')}{c.ambiguityNote}
                     </span>
                   )}
                   {prev && (

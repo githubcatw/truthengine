@@ -99,7 +99,7 @@ export default function NewVerification() {
       {file && (
         <div className="mb-6 space-y-3 rounded-lg border border-rule bg-white p-4">
           <h2 className="font-medium">
-            {t('upload.title')}: {file.fileName}
+            {t('upload.title')}{t('punct.label')}{file.fileName}
           </h2>
           <p className="text-sm text-muted">{t('upload.stored')}</p>
           <div>
@@ -108,7 +108,7 @@ export default function NewVerification() {
               {file.pages.map((p) => (
                 <li key={p.pageNumber}>
                   <Tag tone={p.status === 'failed' ? 'wrong' : p.status === 'skipped' ? 'prosecutor' : 'neutral'}>
-                    {t('upload.page', { n: p.pageNumber })}: {pageLabel[p.status]}
+                    {t('upload.page', { n: p.pageNumber })}{t('punct.label')}{pageLabel[p.status]}
                     {p.warning ? ` — ${p.warning}` : ''}
                   </Tag>
                 </li>
