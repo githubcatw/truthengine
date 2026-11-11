@@ -1,5 +1,19 @@
 # Deployment
 
+## Without installing Node.js: Render
+
+`render.yaml` is a Render blueprint. Render builds and runs the app from GitHub.
+
+1. Create a Firebase project. Enable Email/Password sign-in and Cloud Firestore. Storage is optional: without it, document upload stays disabled and pasted text still works. Then:
+   - copy the web app config (the `VITE_FIREBASE_*` values);
+   - download a service-account key under Project settings → Service accounts.
+2. Get a Gemini API key from Google AI Studio.
+3. In Render, choose New → Blueprint and select this repository. Fill in the values marked `sync: false` and deploy. The service-account JSON goes into `FIREBASE_SERVICE_ACCOUNT_JSON` as one line.
+4. In Firebase Authentication → Settings → Authorized domains, add the `*.onrender.com` address Render gives you.
+5. Deploy the rules and indexes once: `npx firebase deploy --only firestore:rules,firestore:indexes,storage`. If you have no Node.js, paste `firestore.rules` into the Firebase console Rules tab instead. Firestore then offers to create each missing index the first time a query needs it, through a link in the server log.
+
+The free Render plan sleeps after about 15 minutes without traffic, so the first request after that is slow. An open investigation simply resumes, as described in ARCHITECTURE.md.
+
 ## Google AI Studio (full-stack runtime) or any Node host
 
 1. **Enable Firebase for the project.** Turn on Authentication: Email/Password, and optionally Google. Create a Cloud Firestore database and enable Firebase Storage.

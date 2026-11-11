@@ -1,0 +1,33 @@
+# Render blueprint: Render builds and runs the app from GitHub, so no local Node.js is needed.
+# In Render: New → Blueprint → pick this repository → fill in the values marked sync: false.
+services:
+  - type: web
+    name: truthengine-classroom
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/setup-status
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Server-only secrets
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: FIREBASE_STORAGE_BUCKET
+        sync: false
+      - key: BOOTSTRAP_ADMIN_EMAILS
+        sync: false
+      # Public Firebase web config (read at build time)
+      - key: VITE_FIREBASE_API_KEY
+        sync: false
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: VITE_FIREBASE_PROJECT_ID
+        sync: false
+      - key: VITE_FIREBASE_STORAGE_BUCKET
+        sync: false
+      - key: VITE_FIREBASE_APP_ID
+        sync: false
