@@ -1,6 +1,7 @@
 // Classrooms, invitations, assignments and teacher review (PART 16, Phase 3).
 // Server-side classroom authorization on every route (PART 6.2).
 import { randomBytes } from 'node:crypto';
+import { orderedQuery } from '../firestoreQuery';
 import { Router } from 'express';
 import { AssignmentCreateSchema, ClassroomCreateSchema, JoinClassroomSchema } from '../../shared/api';
 import { requireAuth, requireRole, type AuthedUser } from '../auth';
@@ -162,8 +163,8 @@ classroomsRouter.get(
   '/classrooms/:id/submissions',
   handler(async (req) => {
     await requireTeacherOf(req.params.id!, req.user!);
-    const snap = await col(C.jobs).where('classroomId', '==', req.params.id!).orderBy('startedAtMs', 'desc').limit(100).get();
-    const jobs = snap.docs.map((d) => d.data() as JobDoc).filter((j) => j.status !== 'superseded');
+    const rows = await orderedQuery({ name: 'verificationJobs by classroom', base: col(C.jobs).where('classroomId', '==', req.params.id!), orderBy: 'startedAtMs', direction: 'desc', limit: 100 });
+    const jobs = (rows as JobDoc[]).filter((j) => j.status !== 'superseded');
     const uids = [...new Set(jobs.map((j) => j.userId))];
     const users = uids.length ? await db().getAll(...uids.map((u) => col(C.users).doc(u))) : [];
     const names = new Map(users.map((u) => [u.id, (u.get('displayName') as string | null) ?? (u.get('email') as string | null)]));
@@ -187,10 +188,10 @@ classroomsRouter.get(
   handler(async (req) => {
     await requireTeacherOf(req.params.id!, req.user!);
     const [jobSnap, memberSnap] = await Promise.all([
-      col(C.jobs).where('classroomId', '==', req.params.id!).orderBy('startedAtMs', 'desc').limit(300).get(),
+      orderedQuery({ name: 'verificationJobs by classroom', base: col(C.jobs).where('classroomId', '==', req.params.id!), orderBy: 'startedAtMs', direction: 'desc', limit: 300 }),
       col(C.members).where('classroomId', '==', req.params.id!).get(),
     ]);
-    const jobs = jobSnap.docs.map((d) => d.data() as JobDoc).filter((j) => j.status !== 'superseded');
+    const jobs = (jobSnap as JobDoc[]).filter((j) => j.status !== 'superseded');
     const wrongIds = jobs.flatMap((j) => j.claimSummaries.filter((c) => c.verdict === 'WRONG').map((c) => c.claimId));
     const results = wrongIds.length ? await db().getAll(...wrongIds.slice(0, 200).map((id) => col(C.results).doc(id))) : [];
     const bySubject: Record<string, Array<{ claimId: string; topicStatement: string; verdictBasis: string; userId: string }>> = {};

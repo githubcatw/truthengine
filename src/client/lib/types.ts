@@ -12,6 +12,7 @@ export interface ClaimView {
   notVerifiableReason: string | null;
   ambiguityNote: string | null;
   splitFrom: string | null;
+  context?: { sourceLocation: string | null };
   subject: string;
   complexityClass: string | null;
   debateMode: 'fast' | 'full' | null;

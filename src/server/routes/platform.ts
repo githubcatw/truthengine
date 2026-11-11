@@ -1,5 +1,6 @@
 // Trusted sources, receipts, notifications and administration (Phase 4).
 import { createHash } from 'node:crypto';
+import { isMissingIndex, orderedQuery, warnMissingIndex } from '../firestoreQuery';
 import { Router } from 'express';
 import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
@@ -110,8 +111,8 @@ platformRouter.post(
 platformRouter.get(
   '/receipts',
   handler(async (req) => {
-    const snap = await col(C.receipts).where('userId', '==', req.user!.uid).orderBy('createdAtMs', 'desc').limit(100).get();
-    return { items: snap.docs.map((d) => d.data()) };
+    const items = await orderedQuery({ name: 'verificationReceipts by user', base: col(C.receipts).where('userId', '==', req.user!.uid), orderBy: 'createdAtMs', direction: 'desc', limit: 100 });
+    return { items };
   }),
 );
 
@@ -132,8 +133,8 @@ platformRouter.get(
 platformRouter.get(
   '/notifications',
   handler(async (req) => {
-    const snap = await col(C.notifications).where('userId', '==', req.user!.uid).orderBy('createdAtMs', 'desc').limit(50).get();
-    return { items: snap.docs.map((d) => d.data()) };
+    const items = await orderedQuery({ name: 'notifications by user', base: col(C.notifications).where('userId', '==', req.user!.uid), orderBy: 'createdAtMs', direction: 'desc', limit: 50 });
+    return { items };
   }),
 );
 
@@ -207,9 +208,20 @@ admin.patch(
 admin.get(
   '/performance',
   handler(async () => {
-    const snap = await db().collectionGroup('stageRuns').where('status', 'in', ['completed', 'failed']).limit(1000).get();
+    // Collection-group queries need an index; without it, read recent runs and filter in memory.
+    const runs = await db()
+      .collectionGroup('stageRuns')
+      .where('status', 'in', ['completed', 'failed'])
+      .limit(1000)
+      .get()
+      .then((s) => s.docs)
+      .catch(async (err) => {
+        if (!isMissingIndex(err)) throw err;
+        warnMissingIndex('stageRuns collection group by status', err);
+        return (await db().collectionGroup('stageRuns').limit(2000).get()).docs.filter((d) => ['completed', 'failed'].includes(d.get('status')));
+      });
     const agg = new Map<string, { runs: number; failed: number; total: number; max: number; ai: number }>();
-    for (const d of snap.docs) {
+    for (const d of runs) {
       const r = d.data();
       const kind = String(r.stageKey).split(':')[0] + (String(r.stageKey).startsWith('debate:') ? `:${String(r.stageKey).split(':')[2]}` : '');
       const a = agg.get(kind) ?? { runs: 0, failed: 0, total: 0, max: 0, ai: 0 };
@@ -220,8 +232,8 @@ admin.get(
       a.ai += r.aiCalls ?? 0;
       agg.set(kind, a);
     }
-    const jobs = await col(C.jobs).where('status', 'in', ['completed', 'partially_completed']).orderBy('completedAtMs', 'desc').limit(100).get().catch(() => null);
-    const durations = (jobs?.docs ?? []).map((d) => (d.get('completedAtMs') as number) - (d.get('startedAtMs') as number)).filter((n) => n > 0);
+    const jobs = await orderedQuery({ name: 'verificationJobs by status', base: col(C.jobs).where('status', 'in', ['completed', 'partially_completed']), orderBy: 'completedAtMs', direction: 'desc', limit: 100 });
+    const durations = jobs.map((d) => (d.completedAtMs as number) - (d.startedAtMs as number)).filter((n) => n > 0);
     return {
       stages: [...agg.entries()].map(([stage, a]) => ({ stage, runs: a.runs, failed: a.failed, avgMs: Math.round(a.total / a.runs), maxMs: a.max, aiCalls: a.ai })).sort((x, y) => x.stage.localeCompare(y.stage)),
       jobs: { count: durations.length, avgMs: durations.length ? Math.round(durations.reduce((s, n) => s + n, 0) / durations.length) : null, maxMs: durations.length ? Math.max(...durations) : null },

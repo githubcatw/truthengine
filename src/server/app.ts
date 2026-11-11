@@ -80,7 +80,16 @@ export function createApp() {
       res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Malformed JSON.' } });
       return;
     }
-    log.error('unhandled error', { path: req.path, name: (err as Error)?.name });
+    // Enough detail to diagnose in production logs: name, code and (redacted) message, never request bodies.
+    const e = err as { name?: string; code?: unknown; message?: string; stack?: string };
+    log.error('unhandled error', {
+      method: req.method,
+      path: req.path,
+      name: e?.name,
+      code: e?.code ?? null,
+      message: String(e?.message ?? '').slice(0, 1000),
+      at: String(e?.stack ?? '').split('\n').slice(1, 4).map((l) => l.trim()),
+    });
     res.status(500).json({ error: { code: 'INTERNAL', message: 'Something went wrong on the server.' } });
   });
 

@@ -150,4 +150,16 @@ describe('document jobs and the Quality and Citation Audit', () => {
     expect(events.filter((e: any) => e.type === 'extraction_page')).toHaveLength(1);
     expect(events.filter((e: any) => e.type === 'quality_finding')).toHaveLength(findings.length);
   });
+
+  it('claims from a document keep the page they came from; findings include the document for highlighting', async () => {
+    const up = await upload(await pdf(['The first page describes the old school building and its garden.', 'The observatory dome was installed on the roof in the cold winter.']), 'application/pdf', 'two.pdf');
+    const created = await api('POST', '/verifications', { text: up.body.text, idempotencyKey: `pages-${Date.now()}`, fileId: up.body.fileId });
+    const awaiting = await drive(api, created.body.jobId);
+    const dome = awaiting.claims.find((c: any) => c.originalText.includes('observatory dome'));
+    expect(dome.context.sourceLocation).toBe('page 2');
+    const first = awaiting.claims.find((c: any) => c.originalText.includes('first page'));
+    expect(first.context.sourceLocation).toBe('page 1');
+    const findings = (await api('GET', `/verifications/${created.body.jobId}/findings`)).body;
+    expect(findings).toHaveProperty('documentText');
+  });
 });

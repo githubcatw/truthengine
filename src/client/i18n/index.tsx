@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Language } from '../../shared/schemas';
 import { en, type StringKey } from './en';
+import { setErrorTranslator } from '../lib/api';
 import { hy } from './hy';
 import { ru } from './ru';
 
@@ -42,6 +43,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       /* per-viewer convenience only */
     }
   }, []);
+  useEffect(() => {
+    // English keeps the server's specific message; other languages show the translated meaning of the code.
+    setErrorTranslator((code, serverMessage) => {
+      if (lang === 'en') return serverMessage;
+      return DICTS[lang][`error.${code}` as StringKey] ?? serverMessage;
+    });
+  }, [lang]);
   const value = useMemo<I18n>(() => {
     const dict = DICTS[lang];
     const locale = lang === 'hy' ? 'hy-AM' : lang === 'ru' ? 'ru-RU' : 'en-GB';

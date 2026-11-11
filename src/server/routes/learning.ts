@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { orderedQuery } from '../firestoreQuery';
 import { z } from 'zod';
 import { ExerciseAnswerSchema } from '../../shared/api';
 import { requireAuth } from '../auth';
@@ -15,10 +16,15 @@ learningRouter.get(
   '/exercises',
   handler(async (req) => {
     const { cursor, limit } = parse(z.object({ cursor: z.coerce.number().optional(), limit: z.coerce.number().int().min(1).max(50).default(20) }), req.query);
-    let q = col(C.exercises).where('userId', '==', req.user!.uid).orderBy('createdAtMs', 'desc');
-    if (cursor) q = q.startAfter(cursor);
-    const snap = await q.limit(limit).get();
-    const items = snap.docs.map((d) => d.data()).map((e) => (e.attempt ? e : { ...e, correctIndex: undefined }));
+    const rows = await orderedQuery({
+      name: 'learningExercises by user',
+      base: col(C.exercises).where('userId', '==', req.user!.uid),
+      orderBy: 'createdAtMs',
+      direction: 'desc',
+      limit,
+      after: cursor,
+    });
+    const items = rows.map((e) => (e.attempt ? e : { ...e, correctIndex: undefined }));
     return { items, nextCursor: items.length === limit ? (items.at(-1)!.createdAtMs as number) : null };
   }),
 );

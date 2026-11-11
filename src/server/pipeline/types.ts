@@ -40,6 +40,8 @@ export interface JobDoc {
   errorDetails: { code: string; message: string } | null;
   claimSummaries: Array<{ claimId: string; normalizedText: string; outcome: ClaimOutcome; verdict: Verdict | null }>;
   aiCalls: number;
+  /** Sum of stage run durations (pauses excluded). */
+  processingMs?: number;
 }
 
 export interface ClaimDoc {

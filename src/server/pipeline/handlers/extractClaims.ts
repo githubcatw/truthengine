@@ -43,6 +43,16 @@ export async function runExtractClaims(ctx: StageContext): Promise<StageResult> 
   const text: string = sub.get('originalText') ?? '';
   if (!text.trim()) throw new AppError('INVALID_INPUT', 'The submission has no text to verify.');
   const normalizedDoc = normalizeWhitespace(text);
+  // Preserve source locations (PART 8.1): which document page each claim came from.
+  const pageTexts = ctx.job.fileId
+    ? (await col(C.extractionPages).where('fileId', '==', ctx.job.fileId).get()).docs
+        .map((d) => ({ page: d.get('pageNumber') as number, text: normalizeWhitespace((d.get('text') as string) ?? '') }))
+        .filter((p) => p.text)
+    : [];
+  const pageOf = (original: string) => {
+    const needle = normalizeWhitespace(original);
+    return pageTexts.find((p) => p.text.includes(needle))?.page ?? null;
+  };
 
   const chunks = chunkText(text);
   const outputs: ClaimExtractionOutput[] = [];
@@ -95,7 +105,7 @@ export async function runExtractClaims(ctx: StageContext): Promise<StageResult> 
       timeframe: c.timeframe,
       place: c.place,
       population: c.population,
-      sourceLocation: null,
+      sourceLocation: pageOf(c.originalText) ? `page ${pageOf(c.originalText)}` : null,
     };
     const claimSubject = c.category === 'other' ? subject : c.category;
     return {

@@ -94,6 +94,24 @@ export async function advance(jobId: string): Promise<AdvanceResult> {
     await jobRef(jobId).update({ currentStage: 'awaiting_confirmation' });
   }
 
+  // Per-job processing-time limit (PART 9.6): stop honestly instead of running without end.
+  if ((job.processingMs ?? 0) > PIPELINE.maxJobProcessingMs && !hasLiveLease(runs, now)) {
+    const message = `The investigation exceeded its processing time limit (${Math.round(PIPELINE.maxJobProcessingMs / 60_000)} minutes). Completed results are kept.`;
+    await db().runTransaction(async (tx) => {
+      const snap = await tx.get(jobRef(jobId));
+      const cur = snap.data() as JobDoc;
+      if (TERMINAL_JOB_STATUSES.includes(cur.status)) return;
+      const judged = claims.some((c) => c.outcome === 'judged');
+      tx.update(jobRef(jobId), {
+        status: judged ? 'partially_completed' : 'failed',
+        errorDetails: { code: 'INTERNAL', message },
+        completedAtMs: now,
+        completedAt: FieldValue.serverTimestamp(),
+      });
+      writeEventsInTx(tx, jobId, cur.userId, cur.eventSeq, [{ type: 'job_status', summary: message, data: { status: judged ? 'partially_completed' : 'failed' } }]);
+    });
+    return { ran: [], busy: false };
+  }
   const chosen = pick(readyStages(job, claims, runs, now));
   if (!chosen.length) return { ran: [], busy: hasLiveLease(runs, now) };
   const ran = await Promise.all(chosen.map((d) => runStage(job, claims, d)));
@@ -197,7 +215,7 @@ export async function runStage(job: JobDoc, claims: ClaimDoc[], def: StageDef): 
         errorMessage: null,
         outputRef: result.outputRef ?? null,
       });
-      tx.update(jobRef(job.jobId), { aiCalls: FieldValue.increment(counter.aiCalls), lastActivityAt: now });
+      tx.update(jobRef(job.jobId), { aiCalls: FieldValue.increment(counter.aiCalls), processingMs: FieldValue.increment(now - started), lastActivityAt: now });
       const events: EventInput[] = [
         ...(result.events ?? []).map((e) => ({ stageKey: def.key, claimId: def.claimId, ...e })),
         { type: 'stage_completed', stageKey: def.key, claimId: def.claimId, data: { durationMs: now - started, aiCalls: counter.aiCalls } },
@@ -213,7 +231,7 @@ export async function runStage(job: JobDoc, claims: ClaimDoc[], def: StageDef): 
 
 async function recordFailure(job: JobDoc, def: StageDef, owner: string, err: unknown, aiCalls: number, started: number) {
   const appErr = err instanceof AppError ? err : new AppError('INTERNAL', 'The stage failed unexpectedly.');
-  if (!(err instanceof AppError)) log.error('stage crashed', { stage: def.key, name: (err as Error)?.name });
+  if (!(err instanceof AppError)) log.error('stage crashed', { stage: def.key, name: (err as Error)?.name, code: (err as { code?: unknown })?.code ?? null, message: String((err as Error)?.message ?? '').slice(0, 1000) });
   // Diagnostic detail for invalid AI output: field paths and messages only, quoted text removed.
   const problem = (appErr.detail as { problem?: string } | undefined)?.problem;
   const errorDetail = problem ? problem.replace(/"[^"]*"/g, '"…"').slice(0, 500) : null;
@@ -238,7 +256,7 @@ async function recordFailure(job: JobDoc, def: StageDef, owner: string, err: unk
       errorMessage: appErr.message,
       errorDetail,
     });
-    tx.update(jobRef(job.jobId), { aiCalls: FieldValue.increment(aiCalls) });
+    tx.update(jobRef(job.jobId), { aiCalls: FieldValue.increment(aiCalls), processingMs: FieldValue.increment(now - started) });
     const events: EventInput[] = [
       {
         type: 'stage_failed',

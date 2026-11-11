@@ -9,6 +9,35 @@ import { Button, ErrorBox, Notice, PageTitle, Section, Skeleton, Tag, Textarea, 
 import { EvidenceChip, EvidenceDetails } from '../components/Evidence';
 import { PixelAgent } from '../pixel/PixelAgent';
 import { ExerciseCard } from '../components/ExerciseCard';
+import { pageNumber } from '../components/ClaimChecklist';
+import { newIdempotencyKey } from '../lib/api';
+
+/** Shows the audited document with each finding's exact passage highlighted (PART 8.2). */
+function HighlightedDocument({ text, findings }: { text: string; findings: Finding[] }) {
+  const ranges: Array<{ start: number; end: number; label: string }> = [];
+  for (const f of findings) {
+    for (const passage of [f.passage, f.passageB].filter(Boolean) as string[]) {
+      const re = new RegExp(passage.trim().split(/\s+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+'));
+      const m = re.exec(text);
+      if (m) ranges.push({ start: m.index, end: m.index + m[0].length, label: f.label });
+    }
+  }
+  ranges.sort((a, b) => a.start - b.start);
+  const parts: JSX.Element[] = [];
+  let pos = 0;
+  ranges.forEach((r, i) => {
+    if (r.start < pos) return; // overlapping passages: keep the first
+    parts.push(<span key={`t${i}`}>{text.slice(pos, r.start)}</span>);
+    parts.push(
+      <mark key={`m${i}`} title={r.label} className="rounded bg-prosecutor/15 px-0.5">
+        {text.slice(r.start, r.end)}
+      </mark>,
+    );
+    pos = r.end;
+  });
+  parts.push(<span key="end">{text.slice(pos)}</span>);
+  return <div className="max-h-80 overflow-auto whitespace-pre-wrap rounded border border-rule bg-white p-4 text-sm leading-relaxed">{parts}</div>;
+}
 
 interface Finding {
   findingId: string;
@@ -108,6 +137,7 @@ export default function Results() {
   const navigate = useNavigate();
   const [report, setReport] = useState<Report | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
+  const [documentText, setDocumentText] = useState<string | null>(null);
   const [log, setLog] = useState<Array<{ logId: string; action: string; queryOrUrl: string; resultSummary: string; agentType: string }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -121,7 +151,10 @@ export default function Results() {
       .then((r) => {
         setReport(r);
         setTopicText(r.claim.normalizedText);
-        api<{ items: Finding[] }>('GET', `/verifications/${r.job.jobId}/findings`).then((f) => setFindings(f.items)).catch(() => undefined);
+        api<{ items: Finding[]; documentText: string | null }>('GET', `/verifications/${r.job.jobId}/findings`).then((f) => {
+          setFindings(f.items);
+          setDocumentText(f.documentText);
+        }).catch(() => undefined);
         api<{ items: typeof log }>('GET', `/claims/${claimId}/research-log?limit=200`).then((l) => setLog(l.items)).catch(() => undefined);
       })
       .catch((e) => setError(e.message));
@@ -183,7 +216,10 @@ export default function Results() {
         <dl className="grid gap-3 text-sm sm:grid-cols-3">
           <div>
             <dt className="text-muted">{t('res.subject')}</dt>
-            <dd>{t(`subject.${claim.subject}` as StringKey)}</dd>
+            <dd>
+              {t(`subject.${claim.subject}` as StringKey)}
+              {pageNumber(claim.context?.sourceLocation) && <span className="text-muted"> · {t('upload.page', { n: pageNumber(claim.context?.sourceLocation)! })}</span>}
+            </dd>
           </div>
           {decision && (
             <div>
@@ -258,6 +294,11 @@ export default function Results() {
       {findings.length > 0 && (
           <Section title={t('res.audit')}>
             <p className="mb-3 text-sm text-muted">{t('res.audit.note')}</p>
+            {documentText && (
+              <div className="mb-4">
+                <HighlightedDocument text={documentText} findings={findings} />
+              </div>
+            )}
             <ul className="space-y-3">
               {findings.map((f) => (
                 <li key={f.findingId} className="rounded border border-rule bg-white p-3 text-sm">
@@ -271,6 +312,25 @@ export default function Results() {
                   <p className="mt-1 text-xs text-muted">
                     {t('res.audit.check')}: {f.check.performed} — {f.check.result}
                   </p>
+                  {f.offerAsClaim && !report.readOnly && (
+                    <Button
+                      variant="secondary"
+                      className="mt-2"
+                      busy={busy === f.findingId}
+                      onClick={async () => {
+                        setBusy(f.findingId);
+                        try {
+                          const r = await api<{ jobId: string }>('POST', '/verifications', { text: f.passage, idempotencyKey: newIdempotencyKey() });
+                          navigate(`/investigations/${r.jobId}`);
+                        } catch (e) {
+                          setError((e as Error).message);
+                          setBusy(null);
+                        }
+                      }}
+                    >
+                      {t('res.audit.offer')}
+                    </Button>
+                  )}
                 </li>
               ))}
             </ul>

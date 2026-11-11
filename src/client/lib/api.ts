@@ -11,6 +11,13 @@ export class ApiError extends Error {
   }
 }
 
+/** Set by the i18n provider so API errors are shown in the interface language. */
+let translateError: ((code: string, serverMessage: string) => string) | null = null;
+export function setErrorTranslator(fn: typeof translateError) {
+  translateError = fn;
+}
+const localized = (code: string, message: string) => (translateError ? translateError(code, message) : message);
+
 async function token(): Promise<string | null> {
   return auth?.currentUser ? auth.currentUser.getIdToken() : null;
 }
@@ -29,12 +36,21 @@ export async function api<T = any>(method: string, path: string, body?: unknown,
       body: init?.raw ?? (body !== undefined ? JSON.stringify(body) : undefined),
     });
   } catch {
-    throw new ApiError('NETWORK', 'Could not reach the server.', 0);
+    throw new ApiError('NETWORK', localized('NETWORK', 'Could not reach the server.'), 0);
   }
   if (res.headers.get('content-type')?.includes('application/pdf')) return (await res.blob()) as T;
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new ApiError(data?.error?.code ?? 'INTERNAL', data?.error?.message ?? `Request failed (${res.status})`, res.status);
+  let data: any = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    // Not JSON (e.g. a proxy error page): treat as a server error.
+    data = null;
+  }
+  if (!res.ok) {
+    const code = data?.error?.code ?? 'INTERNAL';
+    throw new ApiError(code, localized(code, data?.error?.message ?? `Request failed (${res.status})`), res.status);
+  }
   return data as T;
 }
 

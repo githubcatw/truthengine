@@ -1,6 +1,7 @@
 // Job lifecycle: submission, claim confirmation, follow-up jobs (retry, deeper,
 // topic edit → supersede), cancel, and the job view returned to clients.
 import { FieldValue } from 'firebase-admin/firestore';
+import { orderedQuery } from '../firestoreQuery';
 import { TERMINAL_JOB_STATUSES, type Language, type Subject } from '../../shared/schemas';
 import type { AuthedUser } from '../auth';
 import { PIPELINE, USAGE_LIMITS } from '../config';
@@ -321,13 +322,14 @@ export async function getJobView(jobId: string) {
   const previous = await Promise.all(
     claims.map(async (c) => {
       if (c.status === 'not_verifiable') return null;
-      const snap = await col(C.results)
-        .where('userId', '==', job.userId)
-        .where('cacheKey', '==', c.cacheKey)
-        .orderBy('completedAtMs', 'desc')
-        .limit(3)
-        .get();
-      const hit = snap.docs.map((d) => d.data()).find((r) => r.claimId !== c.claimId && r.jobId !== jobId);
+      const rows = await orderedQuery({
+        name: 'verificationResults by user and cacheKey',
+        base: col(C.results).where('userId', '==', job.userId).where('cacheKey', '==', c.cacheKey),
+        orderBy: 'completedAtMs',
+        direction: 'desc',
+        limit: 3,
+      });
+      const hit = rows.find((r) => r.claimId !== c.claimId && r.jobId !== jobId);
       return hit
         ? { claimId: c.claimId, resultClaimId: hit.claimId as string, verdict: hit.verdict as string, completedAtMs: hit.completedAtMs as number, timeSensitivity: hit.timeSensitivity as string | null }
         : null;

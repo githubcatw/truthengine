@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { AppError } from '../../src/server/errors';
 import { db } from '../../src/server/firebase';
 import { getJobView } from '../../src/server/pipeline/jobs';
+import { advance } from '../../src/server/pipeline/runner';
 import { runStage } from '../../src/server/pipeline/runner';
 import { jobRef, stageRef } from '../../src/server/pipeline/store';
 import type { JobDoc, StageDef, StageRunDoc } from '../../src/server/pipeline/types';
@@ -159,5 +160,21 @@ describe('honest pause behaviour', () => {
     expect(stored.status).toBe('paused');
     const events = await jobRef(j.jobId).collection('events').get();
     expect(events.docs.map((d) => d.get('summary'))).toContain('The investigation is paused and will resume when you reopen it.');
+  });
+});
+
+describe('per-job processing-time limit', () => {
+  it('stops a job that spent too long running stages, with a clear message (pauses do not count)', async () => {
+    const j = await seed(job('slow-job', { processingMs: 31 * 60_000, lastActivityAt: Date.now() - 24 * 3600_000 }));
+    await advance(j.jobId);
+    const stored = (await jobRef(j.jobId).get()).data() as JobDoc;
+    expect(stored.status).toBe('failed');
+    expect(stored.errorDetails?.message).toMatch(/processing time limit/);
+
+    // A job paused for a long time but with little processing time is not affected.
+    const k = await seed(job('paused-job', { status: 'paused', processingMs: 60_000, lastActivityAt: Date.now() - 24 * 3600_000 }));
+    await advance(k.jobId);
+    const resumed = (await jobRef(k.jobId).get()).data() as JobDoc;
+    expect(resumed.errorDetails?.message ?? '').not.toMatch(/processing time limit/);
   });
 });

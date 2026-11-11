@@ -10,7 +10,7 @@
 2. Get a Gemini API key from Google AI Studio.
 3. In Render, choose New → Blueprint and select this repository. Fill in the values marked `sync: false` and deploy. The service-account JSON goes into `FIREBASE_SERVICE_ACCOUNT_JSON` as one line.
 4. In Firebase Authentication → Settings → Authorized domains, add the `*.onrender.com` address Render gives you.
-5. Deploy the rules and indexes once: `npx firebase deploy --only firestore:rules,firestore:indexes,storage`. If you have no Node.js, paste `firestore.rules` into the Firebase console Rules tab instead. Firestore then offers to create each missing index the first time a query needs it, through a link in the server log.
+5. Deploy the rules and indexes once: `npx firebase deploy --only firestore:rules,firestore:indexes,storage`. If you have no Node.js, paste `firestore.rules` into the Firebase console Rules tab instead. Pages still work before the indexes exist: a query that lacks its index falls back to a slower in-memory sort. The server log then shows one `Firestore index missing` warning per query, with a `createIndexLink`. Open each link once to create the index.
 
 The free Render plan sleeps after about 15 minutes without traffic, so the first request after that is slow. An open investigation simply resumes, as described in ARCHITECTURE.md.
 

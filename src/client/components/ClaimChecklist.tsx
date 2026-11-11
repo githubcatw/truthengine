@@ -7,6 +7,7 @@ import type { JobView } from '../lib/types';
 import type { StringKey } from '../i18n/en';
 
 const MAX = 5;
+export const pageNumber = (loc: string | null | undefined) => loc?.match(/^page (\d+)$/)?.[1] ?? null;
 
 export function ClaimChecklist({ view, onConfirmed }: { view: JobView; onConfirmed: (v: JobView) => void }) {
   const { t, formatDate } = useI18n();
@@ -69,6 +70,7 @@ export function ClaimChecklist({ view, onConfirmed }: { view: JobView; onConfirm
                   />
                   <span className="block text-xs text-muted">
                     {t('inv.original')}: “{c.originalText}”
+                    {pageNumber(c.context?.sourceLocation) && <> · {t('upload.page', { n: pageNumber(c.context?.sourceLocation)! })}</>}
                   </span>
                   {c.splitFrom && (
                     <span className="block text-xs text-muted">

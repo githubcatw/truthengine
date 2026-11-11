@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { orderedQuery } from '../firestoreQuery';
 import { z } from 'zod';
 import { assertCanRead } from '../access';
 import { requireAuth, type AuthedUser } from '../auth';
@@ -65,13 +66,14 @@ claimsRouter.get(
   handler(async (req) => {
     const { claim } = await loadClaimForRead(req.params.claimId!, req.user!);
     const { after, limit } = parse(z.object({ after: z.coerce.number().default(0), limit: z.coerce.number().int().min(1).max(200).default(100) }), req.query);
-    const snap = await col(C.researchLog)
-      .where('claimId', '==', claim.claimId)
-      .orderBy('timestampMs')
-      .startAfter(after)
-      .limit(limit)
-      .get();
-    const items = snap.docs.map((d) => d.data());
+    const items = await orderedQuery({
+      name: 'researchLog by claim',
+      base: col(C.researchLog).where('claimId', '==', claim.claimId),
+      orderBy: 'timestampMs',
+      direction: 'asc',
+      limit,
+      after,
+    });
     return { items, nextAfter: items.length === limit ? (items.at(-1)!.timestampMs as number) : null };
   }),
 );

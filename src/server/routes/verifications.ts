@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { orderedQuery } from '../firestoreQuery';
 import { z } from 'zod';
 import { ConfirmClaimsSchema, CreateSubmissionSchema, EditTopicSchema, FollowupSchema } from '../../shared/api';
 import { loadJobForRead } from '../access';
@@ -38,10 +39,14 @@ verificationsRouter.get(
       z.object({ cursor: z.coerce.number().optional(), limit: z.coerce.number().int().min(1).max(50).default(20) }),
       req.query,
     );
-    let q = col(C.jobs).where('userId', '==', req.user!.uid).orderBy('startedAtMs', 'desc');
-    if (cursor) q = q.startAfter(cursor);
-    const snap = await q.limit(limit).get();
-    const jobs = snap.docs.map((d) => d.data() as JobDoc);
+    const jobs = (await orderedQuery({
+      name: 'verificationJobs by user',
+      base: col(C.jobs).where('userId', '==', req.user!.uid),
+      orderBy: 'startedAtMs',
+      direction: 'desc',
+      limit,
+      after: cursor,
+    })) as JobDoc[];
     return {
       items: jobs
         .filter((j) => j.status !== 'superseded')
@@ -153,6 +158,11 @@ verificationsRouter.get(
     const { job } = await loadJobForRead(req.params.jobId!, req.user!);
     // Findings belong to the submission's document, so follow-up jobs show the original audit.
     const snap = await col(C.qualityFindings).where('submissionId', '==', (job as unknown as JobDoc).submissionId).get();
-    return { items: snap.docs.map((d) => d.data()).sort((a, b) => String(a.findingId).localeCompare(String(b.findingId), undefined, { numeric: true })) };
+    const sub = snap.empty ? null : await col(C.submissions).doc((job as unknown as JobDoc).submissionId).get();
+    return {
+      items: snap.docs.map((d) => d.data()).sort((a, b) => String(a.findingId).localeCompare(String(b.findingId), undefined, { numeric: true })),
+      // The audited document, so passages can be highlighted where they occur.
+      documentText: (sub?.get('originalText') as string | undefined) ?? null,
+    };
   }),
 );
