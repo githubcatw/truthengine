@@ -42,6 +42,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for the full setup, including the rules and i
 
 ## Documentation
 
+- [DECISIONS.md](DECISIONS.md): why each framework and design choice was made, and what it costs.
 - [ARCHITECTURE.md](ARCHITECTURE.md): the execution model, the stage graph, leases, pause behaviour and caching.
 - [DATABASE.md](DATABASE.md): collections, fields, ownership and indexes.
 - [API.md](API.md): REST routes and the error format.
