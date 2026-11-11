@@ -1,6 +1,7 @@
 import { PublicHeader, Footer } from '../components/Layout';
 import { LinkButton } from '../components/ui';
 import { PixelAgent } from '../pixel/PixelAgent';
+import { AgentSquad } from '../components/AgentSquad';
 import { useI18n } from '../i18n';
 import type { StringKey } from '../i18n/en';
 import type { AgentKind } from '../pixel/sprites';
@@ -38,6 +39,9 @@ export default function Landing() {
             <PixelAgent agent="prosecutor" state="idle" size={112} />
           </div>
         </section>
+        <div className="mx-auto max-w-6xl px-4 pb-12">
+          <AgentSquad />
+        </div>
         <div className="mx-auto max-w-6xl px-4">
           {SECTIONS.map((s) => (
             <section key={s.title} className="grid gap-6 border-t border-rule py-12 md:grid-cols-[1fr_2fr]">
