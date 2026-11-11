@@ -2,7 +2,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { AI_LIMITS, readGeminiKey } from '../config';
 import { AppError } from '../errors';
-import { log } from '../logger';
 
 export interface GroundingSource {
   uri: string;
@@ -26,7 +25,7 @@ export interface GenerateRequest {
   maxOutputTokens?: number;
   /** Ask for JSON output. Never combined with googleSearch (kept as separate calls, PART 9.1). */
   json?: boolean;
-  /** JSON Schema for the response (sent as responseJsonSchema; falls back to the prompt). */
+  /** JSON Schema sent as responseJsonSchema (structured.ts falls back to the prompt on a 400). */
   jsonSchema?: Record<string, unknown>;
   googleSearch?: boolean;
   inline?: InlinePart[];
@@ -66,8 +65,6 @@ function classifyError(err: unknown): AppError {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Set once the API refuses responseJsonSchema; the schema is then sent in the prompt. */
-let schemaInPrompt = false;
 
 export function createGeminiClient(): GeminiClient {
   const apiKey = readGeminiKey();
@@ -80,14 +77,9 @@ export function createGeminiClient(): GeminiClient {
   const ai = new GoogleGenAI({ apiKey });
 
   async function once(req: GenerateRequest): Promise<GenerateResult> {
-    const useSchemaParam = Boolean(req.json && req.jsonSchema && !schemaInPrompt);
-    const promptText =
-      req.json && req.jsonSchema && schemaInPrompt
-        ? `${req.prompt}\n\nReturn JSON that matches this JSON Schema exactly (field names, types and enum values):\n${JSON.stringify(req.jsonSchema)}`
-        : req.prompt;
     const parts: Array<{ text: string } | { inlineData: InlinePart }> = [
       ...(req.inline ?? []).map((p) => ({ inlineData: p })),
-      { text: promptText },
+      { text: req.prompt },
     ];
     const response = await ai.models.generateContent({
       model: req.model,
@@ -97,7 +89,7 @@ export function createGeminiClient(): GeminiClient {
         temperature: req.temperature,
         maxOutputTokens: req.maxOutputTokens,
         responseMimeType: req.json ? 'application/json' : undefined,
-        responseJsonSchema: useSchemaParam ? req.jsonSchema : undefined,
+        responseJsonSchema: req.json && req.jsonSchema ? req.jsonSchema : undefined,
         tools: req.googleSearch ? [{ googleSearch: {} }] : undefined,
         abortSignal: AbortSignal.timeout(AI_LIMITS.requestTimeoutMs),
       },
@@ -131,12 +123,6 @@ export function createGeminiClient(): GeminiClient {
         try {
           return await once(req);
         } catch (err) {
-          // The API refused the response schema: send it in the prompt from now on.
-          if ((err as { status?: number })?.status === 400 && req.jsonSchema && !schemaInPrompt && /schema/i.test(String((err as Error)?.message))) {
-            schemaInPrompt = true;
-            log.warn('responseJsonSchema refused by the API; sending the schema in the prompt instead');
-            continue;
-          }
           const classified = err instanceof AppError ? err : classifyError(err);
           if (classified.code === 'GEMINI_QUOTA_EXHAUSTED' && attempt < AI_LIMITS.rateLimitRetries) {
             await sleep(AI_LIMITS.rateLimitBaseDelayMs * 2 ** attempt);

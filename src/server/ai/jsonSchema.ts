@@ -4,7 +4,9 @@
 import type { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
-const KEEP = new Set(['type', 'properties', 'required', 'items', 'enum', 'description', 'minItems', 'maxItems', 'minimum', 'maximum', 'anyOf']);
+// Item counts are NOT sent as keywords: they unroll into the decoding grammar and can
+// exceed Gemini's constraint size limit ("Constraint is too tall"). They become hints.
+const KEEP = new Set(['type', 'properties', 'required', 'items', 'enum', 'description', 'minimum', 'maximum', 'anyOf']);
 
 function sanitize(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(sanitize);
@@ -15,6 +17,8 @@ function sanitize(node: unknown): unknown {
   const hints = [
     typeof src.maxLength === 'number' ? `at most ${src.maxLength} characters` : null,
     typeof src.pattern === 'string' ? `must match ${src.pattern}` : null,
+    typeof src.minItems === 'number' && src.minItems > 0 ? `at least ${src.minItems} items` : null,
+    typeof src.maxItems === 'number' ? `at most ${src.maxItems} items` : null,
   ].filter(Boolean);
   if (hints.length) out.description = [src.description, ...hints].filter(Boolean).join('; ');
   for (const [k, v] of Object.entries(src)) {

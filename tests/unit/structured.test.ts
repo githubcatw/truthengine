@@ -55,4 +55,34 @@ describe('structured output with one repair retry', () => {
     expect(calls[1].prompt).toMatch(/cut off by the token limit/);
     expect(calls[1].maxOutputTokens).toBe(2000);
   });
+
+  it('falls back to the schema in the prompt when the API refuses it (400), and remembers that', async () => {
+    const { AppError } = await import('../../src/server/errors');
+    const calls: any[] = [];
+    const client = {
+      async generate(req: any) {
+        calls.push(req);
+        if (req.jsonSchema) throw new AppError('INTERNAL', 'The AI service request failed.', { status: 400 });
+        return { text: '{"answer":"ok","evidenceIds":[]}', groundingSources: [], webSearchQueries: [] };
+      },
+    };
+    const Other = z.object({ answer: z.string().max(20), evidenceIds: z.array(z.string()).max(2) });
+    const r = await callStructured({ ...base, schema: Other, client });
+    expect(r.value.answer).toBe('ok');
+    expect(calls).toHaveLength(2);
+    expect(calls[1].jsonSchema).toBeUndefined();
+    expect(calls[1].prompt).toMatch(/matches this JSON Schema exactly/);
+    expect(calls[1].prompt).toMatch(/at most 2 items/);
+    // The refused schema is not sent again.
+    await callStructured({ ...base, schema: Other, client });
+    expect(calls).toHaveLength(3);
+    expect(calls[2].jsonSchema).toBeUndefined();
+  });
+
+  it('never sends item counts as schema keywords (they inflate the decoding grammar)', async () => {
+    const calls: any[] = [];
+    const client = { async generate(req: any) { calls.push(req); return { text: '{"answer":"ok","evidenceIds":[]}', groundingSources: [], webSearchQueries: [] }; } };
+    await callStructured({ ...base, client });
+    expect(JSON.stringify(calls[0].jsonSchema)).not.toMatch(/"maxItems"|"minItems"|"maxLength"|"pattern"/);
+  });
 });

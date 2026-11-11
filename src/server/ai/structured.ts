@@ -7,6 +7,23 @@ import { AppError } from '../errors';
 import type { GeminiClient, GenerateRequest, InlinePart } from './gemini';
 import { toResponseSchema } from './jsonSchema';
 import { UNTRUSTED_RULES } from './untrusted';
+import { log } from '../logger';
+
+/** Schemas the API refused (e.g. "Constraint is too tall"); they are sent in the prompt instead. */
+const refusedSchemas = new Set<string>();
+
+function isSchemaRefusal(err: unknown): boolean {
+  return err instanceof AppError && err.code === 'INTERNAL' && (err.detail as { status?: number } | undefined)?.status === 400;
+}
+
+/** Puts the schema into the prompt and stops sending it as responseJsonSchema. */
+function schemaInPrompt(req: GenerateRequest): GenerateRequest {
+  return {
+    ...req,
+    jsonSchema: undefined,
+    prompt: `${req.prompt}\n\nReturn JSON that matches this JSON Schema exactly (field names, types, enum values and the limits in the descriptions):\n${JSON.stringify(req.jsonSchema)}`,
+  };
+}
 
 export interface StructuredCallOptions<T extends z.ZodTypeAny> {
   client: GeminiClient;
@@ -91,7 +108,21 @@ export async function callStructured<T extends z.ZodTypeAny>(
             maxOutputTokens: base.maxOutputTokens ? base.maxOutputTokens * 2 : undefined,
             prompt: `${opts.prompt}\n\nYOUR PREVIOUS OUTPUT WAS REJECTED: ${problem}\n${opts.repairContext ? `${opts.repairContext}\n` : ''}Return corrected JSON that satisfies the required schema. Do not add information that is not in the inputs.`,
           };
-    const result = await opts.client.generate(req);
+    const key = JSON.stringify(req.jsonSchema ?? null);
+    let sent = req.jsonSchema && refusedSchemas.has(key) ? schemaInPrompt(req) : req;
+    let result;
+    try {
+      result = await opts.client.generate(sent);
+    } catch (err) {
+      if (!sent.jsonSchema || !isSchemaRefusal(err)) throw err;
+      // The API rejected the response schema: retry this call with the schema in the prompt.
+      refusedSchemas.add(key);
+      log.warn('responseJsonSchema refused by the API (HTTP 400); retrying with the schema in the prompt');
+      aiCalls++;
+      if (opts.counter) opts.counter.aiCalls++;
+      sent = schemaInPrompt(req);
+      result = await opts.client.generate(sent);
+    }
     aiCalls++;
     if (opts.counter) opts.counter.aiCalls++;
     const outcome = check(result.text, result.finishReason, opts.schema, opts.postValidate);
