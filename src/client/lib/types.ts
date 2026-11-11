@@ -28,6 +28,7 @@ export interface StageView {
   aiCalls: number;
   errorCode: string | null;
   errorMessage: string | null;
+  errorDetail?: string | null;
   startedAtMs: number | null;
   nextRetryAt: number | null;
 }

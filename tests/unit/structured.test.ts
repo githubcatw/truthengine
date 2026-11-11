@@ -38,4 +38,21 @@ describe('structured output with one repair retry', () => {
     expect(err).toBeInstanceOf(AppError);
     expect(client.calls[1]!.prompt).toMatch(/E9/);
   });
+
+  it('sends the JSON Schema with pinned topic-lock values, and gives the repair more room after truncation', async () => {
+    const calls: any[] = [];
+    const client = {
+      async generate(req: any) {
+        calls.push(req);
+        return calls.length === 1
+          ? { text: '{"answer":"cut', groundingSources: [], webSearchQueries: [], finishReason: 'MAX_TOKENS' }
+          : { text: '{"answer":"ok","evidenceIds":[]}', groundingSources: [], webSearchQueries: [], finishReason: 'STOP' };
+      },
+    };
+    await callStructured({ ...base, client, maxOutputTokens: 1000, pins: { answer: 'ok' } });
+    expect(calls[0].jsonSchema.properties.answer).toEqual({ type: 'string', enum: ['ok'] });
+    expect(calls[0].jsonSchema.required).toEqual(['answer', 'evidenceIds']);
+    expect(calls[1].prompt).toMatch(/cut off by the token limit/);
+    expect(calls[1].maxOutputTokens).toBe(2000);
+  });
 });

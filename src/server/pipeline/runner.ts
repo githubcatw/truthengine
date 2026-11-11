@@ -214,6 +214,10 @@ export async function runStage(job: JobDoc, claims: ClaimDoc[], def: StageDef): 
 async function recordFailure(job: JobDoc, def: StageDef, owner: string, err: unknown, aiCalls: number, started: number) {
   const appErr = err instanceof AppError ? err : new AppError('INTERNAL', 'The stage failed unexpectedly.');
   if (!(err instanceof AppError)) log.error('stage crashed', { stage: def.key, name: (err as Error)?.name });
+  // Diagnostic detail for invalid AI output: field paths and messages only, quoted text removed.
+  const problem = (appErr.detail as { problem?: string } | undefined)?.problem;
+  const errorDetail = problem ? problem.replace(/"[^"]*"/g, '"…"').slice(0, 500) : null;
+  if (appErr.status >= 500 || appErr.code === 'AI_OUTPUT_INVALID') log.warn('stage failed', { stage: def.key, code: appErr.code, detail: errorDetail });
   const ref = stageRef(job.jobId, def.key);
   await db().runTransaction(async (tx: Transaction) => {
     const [stageSnap, jobSnap] = await Promise.all([tx.get(ref), tx.get(jobRef(job.jobId))]);
@@ -232,6 +236,7 @@ async function recordFailure(job: JobDoc, def: StageDef, owner: string, err: unk
       aiCalls: FieldValue.increment(aiCalls),
       errorCode: appErr.code,
       errorMessage: appErr.message,
+      errorDetail,
     });
     tx.update(jobRef(job.jobId), { aiCalls: FieldValue.increment(aiCalls) });
     const events: EventInput[] = [

@@ -26,15 +26,16 @@ export const TEMPERATURE = {
   pedagogue: 0.4,
 } as const;
 
+// Generous limits: Gemini 3 thinking tokens count toward maxOutputTokens.
 export const MAX_OUTPUT_TOKENS = {
-  extraction: 4096,
-  triage: 512,
-  research: 4096,
-  debate: 2048,
-  judge: 4096,
-  pedagogue: 3072,
-  audit: 4096,
-  ocr: 16384,
+  extraction: 16384,
+  triage: 4096,
+  research: 12288,
+  debate: 8192,
+  judge: 16384,
+  pedagogue: 8192,
+  audit: 12288,
+  ocr: 32768,
 } as const;
 
 export const AI_LIMITS = {

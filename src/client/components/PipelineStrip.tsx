@@ -17,11 +17,12 @@ export function PipelineStrip({ stages, claimNumber }: { stages: StageView[]; cl
   return (
     <ol className="flex flex-wrap gap-1.5" aria-label={t('inv.pipeline')}>
       {stages.map((s) => (
-        <li key={s.stageKey} className="flex items-center gap-1 rounded border border-rule bg-white px-2 py-1 text-xs" title={s.errorMessage ?? undefined}>
+        <li key={s.stageKey} className="flex flex-wrap items-center gap-1 rounded border border-rule bg-white px-2 py-1 text-xs" title={s.errorMessage ?? undefined}>
           {ICON[s.status]}
           <span>{stageLabel(t, s.stageKey, claimNumber)}</span>
           {s.durationMs !== null && s.status !== 'leased' && <span className="text-muted">{(s.durationMs / 1000).toFixed(1)}s</span>}
           {s.status === 'failed' && s.errorMessage && <span className="text-wrong">— {s.errorMessage}</span>}
+          {s.status === 'failed' && s.errorDetail && <span className="block w-full text-[10px] text-muted">{s.errorDetail}</span>}
           {s.status === 'pending' && s.errorMessage && <span className="text-prosecutor">— {s.errorMessage}</span>}
         </li>
       ))}

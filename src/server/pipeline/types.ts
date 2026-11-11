@@ -91,6 +91,8 @@ export interface StageRunDoc {
   aiCalls: number;
   errorCode: string | null;
   errorMessage: string | null;
+  /** Diagnostic detail (validation problem, no user content). */
+  errorDetail?: string | null;
   outputRef: string | null;
 }
 

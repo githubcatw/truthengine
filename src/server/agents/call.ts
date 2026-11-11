@@ -36,6 +36,7 @@ export async function agentCall<T extends z.ZodTypeAny>(opts: AgentCallOptions<T
     maxOutputTokens: opts.maxOutputTokens,
     counter: opts.ctx.counter,
     repairContext: block,
+    pins: { claimId: expected.claimId, debateId: expected.debateId, topicHash: expected.topicHash },
     postValidate: (v) => topicLockError(v as Partial<TopicLock>, expected) ?? opts.postValidate?.(v) ?? null,
   });
   return value;

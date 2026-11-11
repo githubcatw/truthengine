@@ -5,6 +5,7 @@ import type { z } from 'zod';
 import { AI_LIMITS } from '../config';
 import { AppError } from '../errors';
 import type { GeminiClient, GenerateRequest, InlinePart } from './gemini';
+import { toResponseSchema } from './jsonSchema';
 import { UNTRUSTED_RULES } from './untrusted';
 
 export interface StructuredCallOptions<T extends z.ZodTypeAny> {
@@ -20,6 +21,8 @@ export interface StructuredCallOptions<T extends z.ZodTypeAny> {
   repairContext?: string;
   /** Shared per-stage counter so AI calls are tracked (PART 10.5 rule 7). */
   counter?: { aiCalls: number };
+  /** Exact values for top-level string fields (topic-lock identifiers). */
+  pins?: Record<string, string>;
   /** Extra deterministic checks after Zod (e.g. topic lock, evidence IDs). Return an error string or null. */
   postValidate?: (value: z.infer<T>) => string | null;
 }
@@ -37,6 +40,7 @@ function parseJson(text: string): unknown {
 
 function check<T extends z.ZodTypeAny>(
   text: string,
+  finishReason: string | null | undefined,
   schema: T,
   postValidate?: (v: z.infer<T>) => string | null,
 ): { ok: true; value: z.infer<T> } | { ok: false; problem: string } {
@@ -44,6 +48,7 @@ function check<T extends z.ZodTypeAny>(
   try {
     raw = parseJson(text);
   } catch {
+    if (finishReason === 'MAX_TOKENS') return { ok: false, problem: 'Output was cut off by the token limit. Return shorter, complete JSON.' };
     return { ok: false, problem: 'Output was not valid JSON.' };
   }
   const parsed = schema.safeParse(raw);
@@ -71,6 +76,7 @@ export async function callStructured<T extends z.ZodTypeAny>(
     maxOutputTokens: opts.maxOutputTokens,
     inline: opts.inline,
     json: true,
+    jsonSchema: toResponseSchema(opts.schema, opts.pins),
   };
 
   let aiCalls = 0;
@@ -81,12 +87,14 @@ export async function callStructured<T extends z.ZodTypeAny>(
         ? base
         : {
             ...base,
+            // Thinking tokens count toward the limit: give the repair attempt more room.
+            maxOutputTokens: base.maxOutputTokens ? base.maxOutputTokens * 2 : undefined,
             prompt: `${opts.prompt}\n\nYOUR PREVIOUS OUTPUT WAS REJECTED: ${problem}\n${opts.repairContext ? `${opts.repairContext}\n` : ''}Return corrected JSON that satisfies the required schema. Do not add information that is not in the inputs.`,
           };
     const result = await opts.client.generate(req);
     aiCalls++;
     if (opts.counter) opts.counter.aiCalls++;
-    const outcome = check(result.text, opts.schema, opts.postValidate);
+    const outcome = check(result.text, result.finishReason, opts.schema, opts.postValidate);
     if (outcome.ok) return { value: outcome.value, aiCalls, repaired: attempt > 0 };
     problem = outcome.problem;
   }
