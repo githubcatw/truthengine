@@ -92,4 +92,45 @@ describe('UI end-to-end', () => {
     await page.getByText('The old library on the hill').first().waitFor();
     expect(errors).toEqual([]);
   });
+
+  it('shows one courtroom per claim; selecting a card shows only that claim', async () => {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.goto(`${base}/`);
+    await page.locator('select[aria-label]').first().selectOption('en');
+    await page.goto(`${base}/register`);
+    await page.getByLabel('Your name').fill('Aram');
+    await page.getByLabel('Email').fill(`court${Date.now()}@example.com`);
+    await page.getByLabel('Password').fill('password123');
+    await page.getByRole('button', { name: 'Create account' }).click();
+    await page.waitForURL('**/dashboard');
+    await page.goto(`${base}/new`);
+    await page.getByPlaceholder('Paste text or upload a document to verify').fill('The northern bridge was rebuilt with granite blocks. The southern market hall opened on a rainy spring morning.');
+    await page.getByRole('button', { name: 'Verify', exact: true }).click();
+    await page.waitForURL('**/investigations/**');
+    await page.getByRole('button', { name: 'Start the investigation' }).click({ timeout: 60_000 });
+    await page.getByText('View full report').first().waitFor({ timeout: 120_000 });
+
+    // Overview + two claim cards; no speed control once finished? (finished = replay, so it is shown)
+    const cards = page.locator('button[aria-pressed]');
+    await expect.poll(() => cards.count()).toBe(3);
+    await page.screenshot({ path: path.join(root, 'dist-e2e', 'courtroom.png'), fullPage: false });
+
+    await cards.nth(2).click();
+    await page.getByText('The southern market hall opened on a rainy spring morning.', { exact: false }).first().waitFor();
+    const header = page.locator('.sticky.top-14');
+    await expect.poll(() => header.innerText()).toContain('southern market hall');
+    // The transcript of this courtroom contains no search for the other claim.
+    await page.getByText('Text transcript').click();
+    const transcript = await page.locator('details ol').innerText();
+    expect(transcript).not.toContain('northern bridge');
+    expect(transcript).toContain('southern market hall');
+
+    // Scrub to a search event and capture the bubble with site chips.
+    const range = page.locator('input[type=range]');
+    for (let i = 0; i < 40; i++) {
+      await range.fill(String(i));
+      if (await page.locator('text=/\\d+ results/').first().isVisible().catch(() => false)) break;
+    }
+    await page.screenshot({ path: path.join(root, 'dist-e2e', 'search-bubble.png'), fullPage: true });
+  });
 });

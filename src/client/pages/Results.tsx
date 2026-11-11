@@ -10,6 +10,7 @@ import { EvidenceChip, EvidenceDetails } from '../components/Evidence';
 import { PixelAgent } from '../pixel/PixelAgent';
 import { ExerciseCard } from '../components/ExerciseCard';
 import { pageNumber } from '../components/ClaimChecklist';
+import { describeResearch } from '../lib/events';
 import { newIdempotencyKey } from '../lib/api';
 
 /** Shows the audited document with each finding's exact passage highlighted (PART 8.2). */
@@ -138,7 +139,7 @@ export default function Results() {
   const [report, setReport] = useState<Report | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [documentText, setDocumentText] = useState<string | null>(null);
-  const [log, setLog] = useState<Array<{ logId: string; action: string; queryOrUrl: string; resultSummary: string; agentType: string }>>([]);
+  const [log, setLog] = useState<Array<{ logId: string; action: string; queryOrUrl: string; resultSummary: string; agentType: string; failureReason: string | null; details?: Record<string, unknown> }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [topicText, setTopicText] = useState('');
@@ -525,11 +526,26 @@ export default function Results() {
           </p>
         )}
         <ol className="max-h-96 space-y-1 overflow-auto text-xs">
-          {log.map((l) => (
-            <li key={l.logId} className="border-b border-rule/60 pb-1">
-              <span className="font-medium">{t(`agent.${l.agentType}` as StringKey)}</span> · {l.action} · <span className="break-all">{l.queryOrUrl}</span> — <span className="text-muted">{l.resultSummary}</span>
-            </li>
-          ))}
+          {log.map((l) => {
+            const d = { ...(l.details ?? {}), failureReason: l.failureReason } as Record<string, any>;
+            return (
+              <li key={l.logId} className="border-b border-rule/60 pb-1.5">
+                <span className="font-medium">{t(`agent.${l.agentType}` as StringKey)}</span>: {describeResearch(d, t, `${l.queryOrUrl} — ${l.resultSummary}`)}
+                {Array.isArray(d.sites) && d.sites.length > 0 && (
+                  <span className="mt-1 flex flex-wrap gap-1">
+                    {(d.sites as string[]).map((site) => (
+                      <Tag key={site}>{site}</Tag>
+                    ))}
+                  </span>
+                )}
+                {typeof d.url === 'string' && (
+                  <a href={d.url} target="_blank" rel="noopener noreferrer nofollow" className="block text-[11px] text-muted [overflow-wrap:anywhere] hover:text-navy">
+                    {d.url}
+                  </a>
+                )}
+              </li>
+            );
+          })}
         </ol>
       </Section>
     </article>

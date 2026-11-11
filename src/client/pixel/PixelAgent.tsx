@@ -32,9 +32,9 @@ export const PixelAgent = memo(function PixelAgent({
   useEffect(() => {
     setFrame(0);
     if (reduce) return;
-    const id = setInterval(() => setFrame((f) => (f + 1) % frameCount(state)), FRAME_MS[state]);
+    const id = setInterval(() => setFrame((f) => (f + 1) % frameCount(agent, state)), FRAME_MS[state]);
     return () => clearInterval(id);
-  }, [state, reduce]);
+  }, [agent, state, reduce]);
 
   const { pixels, palette } = useMemo(() => composeFrame(agent, state, reduce ? 0 : frame), [agent, state, frame, reduce]);
   const name = t(`agent.${agent}`);
@@ -75,6 +75,7 @@ export function SpeechBubble({
   text,
   header,
   chips,
+  footer,
   side = 'left',
   typeMs = 18,
 }: {
@@ -82,6 +83,8 @@ export function SpeechBubble({
   text: string;
   header?: ReactNode;
   chips?: ReactNode;
+  /** Small secondary line (e.g. the source link), shown once the text is typed out. */
+  footer?: ReactNode;
   side?: 'left' | 'right' | 'top';
   typeMs?: number;
 }) {
@@ -101,14 +104,15 @@ export function SpeechBubble({
     <motion.div
       initial={reduce ? false : { opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`relative max-w-md border-2 bg-white px-3 py-2 text-sm leading-relaxed shadow-[3px_3px_0_0_rgba(0,0,0,0.12)] before:absolute before:h-3 before:w-3 before:rotate-45 before:border-b-2 before:border-l-2 before:bg-white before:content-[''] ${SIDE_TONE[agent] ?? 'border-ink/60'} ${tail} before:border-inherit`}
+      className={`relative min-w-0 max-w-md border-2 bg-white px-3 py-2 text-sm leading-relaxed shadow-[3px_3px_0_0_rgba(0,0,0,0.12)] before:absolute before:h-3 before:w-3 before:rotate-45 before:border-b-2 before:border-l-2 before:bg-white before:content-[''] ${SIDE_TONE[agent] ?? 'border-ink/60'} ${tail} before:border-inherit`}
     >
       {header && <div className="mb-1 font-pixel text-[8px] uppercase tracking-wider text-muted">{header}</div>}
-      <p className="whitespace-pre-wrap">
+      <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
         {text.slice(0, shown)}
         {shown < text.length && <span className="opacity-40">▍</span>}
       </p>
       {chips && shown >= text.length && <div className="mt-2 flex flex-wrap gap-1">{chips}</div>}
+      {footer && shown >= text.length && <div className="mt-1 text-[11px] text-muted [overflow-wrap:anywhere]">{footer}</div>}
     </motion.div>
   );
 }

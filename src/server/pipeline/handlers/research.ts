@@ -93,6 +93,8 @@ async function logAction(
     resultSummary: string;
     failureReason?: RetrievalFailureReason | null;
     groupId?: string;
+    /** Structured facts the interface turns into a localized sentence (no prose). */
+    details?: Record<string, unknown>;
   },
 ) {
   const claim = ctx.claim!;
@@ -107,6 +109,7 @@ async function logAction(
     queryOrUrl: entry.queryOrUrl,
     resultSummary: entry.resultSummary.slice(0, 500),
     failureReason: entry.failureReason ?? null,
+    details: entry.details ?? {},
     timestampMs: Date.now(),
   };
   await ctx.live(
@@ -116,9 +119,9 @@ async function logAction(
         type: 'research_log',
         agentType: entry.agentType,
         ref: { collection: 'researchLog', id: ref.id },
-        groupId: entry.groupId ?? null,
+        groupId: entry.groupId ?? ctx.stageKey,
         summary: `${entry.queryOrUrl} — ${doc.resultSummary}`,
-        data: { action: entry.action, failureReason: doc.failureReason },
+        data: { action: entry.action, failureReason: doc.failureReason, queryOrUrl: entry.queryOrUrl, ...(entry.details ?? {}) },
       },
     ],
   );
@@ -202,7 +205,7 @@ async function runSearches(ctx: StageContext, queries: ResearchState['plan'], st
       }
     } catch (err) {
       if (err instanceof AppError && ['GEMINI_NOT_CONFIGURED', 'GEMINI_INVALID_KEY'].includes(err.code)) throw err;
-      await logAction(ctx, { agentType, action: 'search_query', queryOrUrl: q.query, resultSummary: 'The search request failed.' });
+      await logAction(ctx, { agentType, action: 'search_query', queryOrUrl: q.query, resultSummary: 'The search request failed.', details: { kind: 'search_failed', query: q.query } });
       return;
     }
     for (const s of sources) leads.push({ url: s.uri, title: s.title, snippets: s.snippets, track: q.track, query: q.query, language: q.language });
@@ -213,6 +216,7 @@ async function runSearches(ctx: StageContext, queries: ResearchState['plan'], st
       resultSummary: sources.length
         ? `${sources.length} result(s)${cached ? ' (cached search)' : ''}: ${sources.map((s) => s.title ?? hostOf(s.uri)).join('; ')}`
         : 'No results.',
+      details: { kind: 'search', query: q.query, cached, sites: [...new Set(sources.map((s) => (s.title && /\./.test(s.title) ? s.title : hostOf(s.uri))))] },
     });
   });
   // Merge into state without duplicate URLs.
@@ -318,6 +322,7 @@ async function readLeads(
         queryOrUrl: outcome.finalUrl ?? lead.url,
         resultSummary: `Could not retrieve the source (${outcome.reason}: ${outcome.detail}).`,
         failureReason: outcome.reason,
+        details: { kind: 'retrieval_failed', host: hostOf(outcome.finalUrl ?? lead.url), url: outcome.finalUrl ?? lead.url },
       });
       return;
     }
@@ -328,6 +333,7 @@ async function readLeads(
         action: 'source_rejected',
         queryOrUrl: outcome.finalUrl,
         resultSummary: `Skipped: already ${RESEARCH.maxEvidencePerDomain} sources from ${domain} (independence limit).`,
+        details: { kind: 'domain_limit', host: domain, url: outcome.finalUrl, limit: RESEARCH.maxEvidencePerDomain },
       });
       return;
     }
@@ -338,6 +344,7 @@ async function readLeads(
       action: outcome.kind === 'pdf' ? 'read_pdf' : 'fetch_page',
       queryOrUrl: outcome.finalUrl,
       resultSummary: `Retrieved ${outcome.kind.toUpperCase()}${cached ? ' (cached copy)' : ''}${outcome.title ? `: ${outcome.title}` : ''}${outcome.kind === 'pdf' ? `, ${outcome.pages.length} page(s)` : ''}.`,
+      details: { kind: 'fetched', host: domain, url: outcome.finalUrl, format: outcome.kind, title: outcome.title, pages: outcome.kind === 'pdf' ? outcome.pages.length : null, cached },
     });
   });
 
@@ -410,7 +417,14 @@ async function readLeads(
       }
       assessedRefs.add(b.ref);
       if (!a.usable) {
-        await logAction(ctx, { agentType, action: 'source_rejected', queryOrUrl: b.page.finalUrl, resultSummary: `Rejected: ${a.rejectReason ?? 'not relevant to the claim'}` });
+        await logAction(ctx, {
+          agentType,
+          action: 'source_rejected',
+          queryOrUrl: b.page.finalUrl,
+          resultSummary: `Rejected: ${a.rejectReason ?? 'not relevant to the claim'}`,
+          // rejectReason is written by the model in the output language.
+          details: { kind: 'rejected', host: hostOf(b.page.finalUrl), url: b.page.finalUrl, note: a.rejectReason },
+        });
         continue;
       }
       const fullText = b.page.pages.map((p) => p.text).join('\n');
@@ -442,6 +456,9 @@ async function readLeads(
         resultSummary: verified
           ? `Excerpt verified in the retrieved content${record.excerptLocation ? ` (${record.excerptLocation})` : ''}.`
           : 'The proposed excerpt was not found verbatim in the retrieved content, so it is not shown as a quotation.',
+        details: verified
+          ? { kind: 'verified', host: domain, url: b.page.finalUrl, location: record.excerptLocation, evidenceId: null }
+          : { kind: 'not_verbatim', host: domain, url: b.page.finalUrl },
       });
     }
   }
@@ -595,6 +612,7 @@ export async function runResearchRefine(ctx: StageContext): Promise<StageResult>
     action: 'research_stopped',
     queryOrUrl: topic.topicStatement,
     resultSummary: `${reasonText[state.stopReason!]} ${verified} source(s) with verified excerpts, ${independentCount(all)} independent.`,
+    details: { kind: 'stopped', stopReason: state.stopReason, verified, independent: independentCount(all) },
   });
 
   // Fail closed: zero quote_verified evidence means no verdict (PART 0.5 rule 5).

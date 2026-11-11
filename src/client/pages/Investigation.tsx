@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { TERMINAL_JOB_STATUSES } from '../../shared/schemas';
 import { api } from '../lib/api';
@@ -6,9 +6,9 @@ import { useEvents } from '../lib/events';
 import { useI18n } from '../i18n';
 import { Button, ErrorBox, Notice, PageTitle, Skeleton, Spinner, VerdictBadge, formatDuration } from '../components/ui';
 import { ClaimChecklist } from '../components/ClaimChecklist';
-import { PipelineStrip } from '../components/PipelineStrip';
+import { ClaimCards, OVERVIEW } from '../components/ClaimCards';
 import { JobStatusLabel } from '../components/JobStatusLabel';
-import type { JobView } from '../lib/types';
+import type { InvestigationEvent, JobView } from '../lib/types';
 
 const InvestigationStage = lazy(() => import('../components/InvestigationStage'));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -26,6 +26,36 @@ export default function Investigation() {
   const awaiting = view ? !view.job.confirmedAt && view.job.currentStage === 'awaiting_confirmation' : false;
   const readOnly = Boolean(view?.readOnly);
   const { events, loaded } = useEvents(jobId, { live: !terminal, readOnly });
+
+  // Virtual courtroom: the viewer follows one claim (or the overview) at a time.
+  const [selected, setSelected] = useState<string>(OVERVIEW);
+  const userPicked = useRef(false);
+  const pointers = useRef(new Map<string, number>());
+  const [seen, setSeen] = useState<Record<string, number>>({});
+  const byCourt = useMemo(() => {
+    const m = new Map<string, InvestigationEvent[]>();
+    for (const e of events) {
+      const k = e.claimId ?? OVERVIEW;
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(e);
+    }
+    return m;
+  }, [events]);
+  const firstActive = view?.claims.find((c) => c.status === 'confirmed' && c.selected)?.claimId ?? null;
+  useEffect(() => {
+    // Once claims are confirmed, open the first claim's courtroom unless the viewer chose one.
+    if (!userPicked.current && firstActive) setSelected(firstActive);
+  }, [firstActive]);
+  useEffect(() => {
+    const latest = byCourt.get(selected)?.at(-1)?.seq ?? 0;
+    setSeen((prev) => (prev[selected] === latest ? prev : { ...prev, [selected]: latest }));
+  }, [byCourt, selected]);
+  const unseen = useMemo(() => {
+    const out = new Set<string>();
+    for (const [k, list] of byCourt) if (k !== selected && (list.at(-1)?.seq ?? 0) > (seen[k] ?? 0)) out.add(k);
+    return out;
+  }, [byCourt, seen, selected]);
+  const onPointer = useCallback((p: number) => pointers.current.set(selected, p), [selected]);
 
   useEffect(() => {
     setView(null);
@@ -84,10 +114,6 @@ export default function Investigation() {
 
   const { job } = view;
   const active = view.claims.filter((c) => c.status === 'confirmed' && c.selected);
-  const claimNumber = (id: string) => {
-    const i = active.findIndex((c) => c.claimId === id);
-    return active.length > 1 && i >= 0 ? i + 1 : null;
-  };
   const done = view.stages.filter((s) => s.status === 'completed' || s.status === 'skipped').length;
   const claimsDone = active.filter((c) => c.outcome !== 'pending').length;
   const elapsed = (job.completedAtMs ?? now) - job.startedAtMs;
@@ -140,11 +166,34 @@ export default function Investigation() {
       {!job.confirmedAt && !awaiting && !terminal && <Spinner label={t('inv.extracting')} />}
       {awaiting && !readOnly && <ClaimChecklist view={view} onConfirmed={setView} />}
 
-      {view.stages.length > 0 && <PipelineStrip stages={view.stages} claimNumber={claimNumber} />}
+      {job.confirmedAt && (
+        <ClaimCards
+          claims={active}
+          stages={view.stages}
+          selected={selected}
+          unseen={unseen}
+          onSelect={(id) => {
+            userPicked.current = true;
+            setSelected(id);
+          }}
+        />
+      )}
       {!terminal && job.confirmedAt && !readOnly && <p className="text-xs text-muted">{t('inv.keepOpen')}</p>}
 
       <Suspense fallback={<Skeleton lines={4} />}>
-        <InvestigationStage events={events} claims={view.claims} finished={terminal} loaded={loaded} />
+        <InvestigationStage
+          key={selected}
+          events={byCourt.get(selected) ?? []}
+          claims={view.claims}
+          finished={terminal}
+          loaded={loaded}
+          focusClaimId={selected === OVERVIEW ? null : selected}
+          running={view.stages
+            .filter((s) => s.status === 'leased' && (selected === OVERVIEW ? !s.stageKey.includes(':') : s.stageKey.split(':')[1] === selected))
+            .map((s) => s.stageKey)}
+          initialPointer={pointers.current.get(selected)}
+          onPointer={onPointer}
+        />
       </Suspense>
 
       {active.length > 0 && (

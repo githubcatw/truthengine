@@ -66,6 +66,9 @@ export interface Frame {
   /** Extra offset for the hand-held props only. */
   propDx?: number;
   propDy?: number;
+  /** Extra offset for the "tool" layer (e.g. a highlighter that moves on its own). */
+  toolDx?: number;
+  toolDy?: number;
   /** Use the costume's alternate prop drawing (e.g. gavel tilted down). */
   altProps?: boolean;
   /** Offset for the costume "accents" layer (document lines, antenna light). */
@@ -87,8 +90,10 @@ export interface Costume {
   accents: Px[];
   props: Px[];
   propsAlt?: Px[];
-  /** Two frames per state. */
-  anims: Record<'idle' | 'talking' | 'reasoning' | 'hit', [Frame, Frame]>;
+  /** A prop that moves independently (drawn last). */
+  tool?: Px[];
+  /** Two frames per state; Reasoning (working) may use up to four. */
+  anims: Record<'idle' | 'talking' | 'reasoning' | 'hit', Frame[]>;
 }
 
 const ALERT: Px[] = [[14, 0, 2, 2, 'alert']];
@@ -200,8 +205,13 @@ export const COSTUMES: Record<AgentKind, Costume> = {
     anims: {
       idle: [{ dy: 0 }, { dy: -1 }],
       talking: [{ dy: 0 }, { dy: -1, propDx: 1 }],
-      // The glass moves across the eye: from the side to over the right eye.
-      reasoning: [{ dy: 0 }, { dy: -1, propDx: -4, propDy: -3 }],
+      // Working: the glass sweeps from the side, over the right eye, over the left eye, and back.
+      reasoning: [
+        { dy: 0 },
+        { dy: -1, propDx: -3, propDy: -3, eyes: 'up' },
+        { dy: -1, propDx: -7, propDy: -3, eyes: 'up' },
+        { dy: 0, propDx: -3, propDy: -3 },
+      ],
       hit: [{ dy: 0, eyes: 'x', propDx: -1, extra: ALERT }, { dy: -1, eyes: 'x', propDx: 1, propDy: -1 }],
     },
   },
@@ -219,12 +229,18 @@ export const COSTUMES: Record<AgentKind, Costume> = {
       [0, 8, 3, 4, 'paper'],
       [0, 11, 3, 1, 'paperEdge'],
       [0, 9, 2, 1, 'marker'],
-      [13, 7, 2, 3, 'marker'],
     ],
+    tool: [[13, 7, 2, 3, 'marker']],
     anims: {
       idle: [{ dy: 0 }, { dy: -1, hideAccents: true }],
       talking: [{ dy: 0, eyesDy: 0, mouth: 'open' }, { dy: -1, eyesDy: -1, hideAccents: true }],
-      reasoning: [{ dy: 0 }, { dy: -1, accentDy: 1 }],
+      // Working: the highlighter travels to the paper and swipes across it while the antenna blinks.
+      reasoning: [
+        { dy: 0 },
+        { dy: 0, toolDx: -6, toolDy: 1, hideAccents: true },
+        { dy: -1, toolDx: -12, toolDy: 2 },
+        { dy: -1, toolDx: -13, toolDy: 4, hideAccents: true },
+      ],
       hit: [{ dy: 0, dx: -1, eyes: 'x', extra: ALERT }, { dy: -1, dx: 1, eyes: 'x', hideAccents: true }],
     },
   },
@@ -325,14 +341,14 @@ const VERDICT_FRAMES: Record<'winner' | 'loser', [Frame, Frame]> = {
   ],
 };
 
-export function framesFor(agent: AgentKind, state: AgentState): [Frame, Frame] {
+export function framesFor(agent: AgentKind, state: AgentState): Frame[] {
   if (state === 'winner' || state === 'loser') return VERDICT_FRAMES[state];
   const key = state === 'researching' || state === 'thinking' ? 'reasoning' : state;
   return COSTUMES[agent].anims[key];
 }
 
-export function frameCount(_state: AgentState): number {
-  return 2;
+export function frameCount(agent: AgentKind, state: AgentState): number {
+  return framesFor(agent, state).length;
 }
 
 const shift = (p: Px, dx: number, dy: number): Px => [p[0] + dx, p[1] + dy, p[2], p[3], p[4]];
@@ -340,12 +356,14 @@ const shift = (p: Px, dx: number, dy: number): Px => [p[0] + dx, p[1] + dy, p[2]
 /** Composes the pixel list for one frame, clipped to the grid. */
 export function composeFrame(agent: AgentKind, state: AgentState, frame: number): { pixels: Px[]; palette: Record<string, string> } {
   const c = COSTUMES[agent];
-  const f = framesFor(agent, state)[frame % 2]!;
+  const frames = framesFor(agent, state);
+  const f = frames[frame % frames.length]!;
   const palette = { ...BASE_PALETTE, ...c.palette };
   const props = (f.altProps && c.propsAlt ? c.propsAlt : c.props).map((p) => shift(p, f.propDx ?? 0, f.propDy ?? 0));
   const accents = f.hideAccents ? [] : c.accents.map((p) => shift(p, 0, f.accentDy ?? 0));
   const face = [...EYES[f.eyes ?? 'open']!.map((p) => shift(p, 0, f.eyesDy ?? 0)), ...MOUTHS[f.mouth ?? 'small']!];
-  const body = [...c.back, ...HEAD, ...c.front, ...accents, ...face, ...props].map((p) => shift(p, f.dx ?? 0, f.dy ?? 0));
+  const tool = (c.tool ?? []).map((p) => shift(p, f.toolDx ?? 0, f.toolDy ?? 0));
+  const body = [...c.back, ...HEAD, ...c.front, ...accents, ...face, ...props, ...tool].map((p) => shift(p, f.dx ?? 0, f.dy ?? 0));
   const all: Px[] = [[4, 15, 8, 1, 'shadow'], ...body, ...(f.extra ?? [])];
   const clip = (p: Px): Px | null => {
     const x0 = Math.max(0, p[0]);

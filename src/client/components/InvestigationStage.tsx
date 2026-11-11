@@ -6,7 +6,7 @@ import { useReducedMotion } from 'framer-motion';
 import { FastForward, Pause, Play, Rewind, SkipBack, SkipForward, FileText } from 'lucide-react';
 import { PixelAgent, SpeechBubble } from '../pixel/PixelAgent';
 import type { AgentKind, AgentState } from '../pixel/sprites';
-import { describeEvent, stageLabel } from '../lib/events';
+import { describeEvent, eventExtras, stageLabel } from '../lib/events';
 import { useI18n } from '../i18n';
 import type { ClaimView, InvestigationEvent } from '../lib/types';
 import { EvidenceChip } from './Evidence';
@@ -14,14 +14,28 @@ import { VerdictBadge } from './ui';
 
 const TECHNICAL = new Set(['stage_started', 'stage_completed', 'stage_retry', 'research_log', 'evidence_saved', 'extraction_page']);
 
-function displayMs(e: InvestigationEvent | undefined, reduce: boolean): number {
+function displayMs(e: InvestigationEvent | undefined, reduce: boolean, live: boolean): number {
   if (!e) return 0;
   if (reduce) return 400;
   if (e.type === 'judge_decision') return 7000;
   if (e.type === 'debate_message') return Math.min(7000, 2500 + (e.summary?.length ?? 0) * 18);
-  if (TECHNICAL.has(e.type)) return 1500;
+  // While live, small technical steps pass quickly so playback keeps up with the real work.
+  if (TECHNICAL.has(e.type)) return live ? 800 : 1500;
   return 2500;
 }
+
+/** Which agent is doing the work of a running stage (keeps its "working" animation going). */
+function agentForStage(stageKey: string): AgentKind | null {
+  const kind = stageKey.split(':')[0]!;
+  if (kind === 'extract_claims' || kind === 'triage') return 'claim_extractor';
+  if (kind === 'audit') return 'quality_auditor';
+  if (kind.startsWith('research')) return 'researcher';
+  if (kind === 'judge') return 'judge';
+  if (kind === 'pedagogue') return 'pedagogue';
+  return null;
+}
+
+const SiteChip = ({ site }: { site: string }) => <span className="rounded border border-rule bg-paper px-1.5 py-0.5 text-[11px] text-ink">{site}</span>;
 
 function agentOf(e: InvestigationEvent | undefined): AgentKind | null {
   if (!e) return null;
@@ -57,11 +71,22 @@ export default function InvestigationStage({
   claims,
   finished,
   loaded,
+  focusClaimId,
+  running = [],
+  initialPointer,
+  onPointer,
 }: {
+  /** Events of the selected courtroom only (one claim, or the job-level overview). */
   events: InvestigationEvent[];
   claims: ClaimView[];
   finished: boolean;
   loaded: boolean;
+  focusClaimId: string | null;
+  /** Stage keys currently running for this courtroom. */
+  running?: string[];
+  /** Where the viewer left this courtroom last time (kept per claim). */
+  initialPointer?: number;
+  onPointer?: (pointer: number) => void;
 }) {
   const { t } = useI18n();
   const reduce = Boolean(useReducedMotion());
@@ -73,7 +98,7 @@ export default function InvestigationStage({
   // On refresh: fast-forward through already-persisted events, then continue live.
   useEffect(() => {
     if (loaded && !fastForwarded) {
-      setPointer(events.length > 3 ? events.length - 1 : -1);
+      setPointer(initialPointer !== undefined ? Math.min(initialPointer, events.length - 1) : events.length > 3 ? events.length - 1 : -1);
       setFastForwarded(true);
     }
   }, [loaded, fastForwarded, events.length]);
@@ -82,24 +107,28 @@ export default function InvestigationStage({
   useEffect(() => {
     if (paused || pointer >= events.length - 1) return;
     const behind = events.length - 1 - pointer;
-    const auto = behind > 20 ? 4 : behind > 8 ? 2 : 1;
-    const ms = pointer < 0 ? 200 : displayMs(events[pointer], reduce) / (speed * auto);
+    // Live: catch up quickly so the timeline does not lag behind the real progress.
+    const auto = !finished ? (behind > 6 ? 4 : behind > 2 ? 2 : 1) : behind > 20 ? 4 : behind > 8 ? 2 : 1;
+    const ms = pointer < 0 ? 200 : displayMs(events[pointer], reduce, !finished) / ((finished ? speed : 1) * auto);
     const id = setTimeout(() => setPointer((p) => Math.min(p + 1, events.length - 1)), ms);
     return () => clearTimeout(id);
-  }, [pointer, events, paused, speed, reduce]);
+  }, [pointer, events, paused, speed, reduce, finished]);
+
+  useEffect(() => {
+    if (fastForwarded) onPointer?.(pointer);
+  }, [pointer, fastForwarded, onPointer]);
 
   useEffect(() => {
     if (pointer > events.length - 1) setPointer(events.length - 1);
   }, [pointer, events.length]);
   const shown = useMemo(() => events.slice(0, pointer + 1), [events, pointer]);
   const current = shown[shown.length - 1];
-  const claimNumber = (id: string) => {
-    const i = claims.findIndex((c) => c.claimId === id);
-    return claims.length > 1 && i >= 0 ? i + 1 : null;
-  };
-  const currentClaimId = [...shown].reverse().find((e) => e.claimId)?.claimId ?? null;
-  const topic = claims.find((c) => c.claimId === currentClaimId)?.normalizedText ?? claims.find((c) => c.selected && c.status === 'confirmed')?.normalizedText;
+  // Inside one courtroom the claim is already known, so stage labels need no "Claim N" prefix.
+  const claimNumber = (_id: string): number | null => null;
+  const currentClaimId = focusClaimId;
+  const topic = focusClaimId ? claims.find((c) => c.claimId === focusClaimId)?.normalizedText : null;
   const forClaim = (e: InvestigationEvent) => !currentClaimId || e.claimId === currentClaimId;
+  const working = new Set(running.map(agentForStage).filter(Boolean) as AgentKind[]);
 
   const lastOf = (pred: (e: InvestigationEvent) => boolean) => [...shown].reverse().find((e) => forClaim(e) && pred(e));
   const defMsg = lastOf((e) => e.type === 'debate_message' && e.agentType === 'defender');
@@ -111,17 +140,28 @@ export default function InvestigationStage({
 
   const stateFor = (who: 'defender' | 'prosecutor' | 'judge'): AgentState => {
     if (decision && who !== 'judge') return winner === who ? 'winner' : 'loser';
-    if (who === 'judge') return active === 'judge' ? 'talking' : decision ? 'idle' : current?.stageKey?.startsWith('debate') ? 'thinking' : 'idle';
+    if (who === 'judge') return active === 'judge' ? 'talking' : decision ? 'idle' : working.has('judge') || current?.stageKey?.startsWith('debate') ? 'thinking' : 'idle';
     if (active === who) return current?.type === 'research_log' || current?.type === 'evidence_saved' ? 'researching' : 'talking';
     const target = (current?.data as { referencedArgumentIds?: string[] })?.referencedArgumentIds?.[0] ?? '';
     if (current?.type === 'debate_message' && (current.data as { messageType: string }).messageType === 'challenge' && target.startsWith(who === 'defender' ? 'D-' : 'P-')) return 'hit';
     return current?.type === 'debate_message' ? 'thinking' : 'idle';
   };
 
-  const chips = (e: InvestigationEvent | undefined) =>
-    e && e.claimId
-      ? ((e.data as { evidenceIds?: string[] }).evidenceIds ?? []).map((id) => <EvidenceChip key={id} claimId={e.claimId!} evidenceId={id} />)
-      : null;
+  const chips = (e: InvestigationEvent | undefined) => {
+    if (!e) return null;
+    const sites = eventExtras(e).sites;
+    if (sites.length) return sites.map((site) => <SiteChip key={site} site={site} />);
+    return e.claimId ? ((e.data as { evidenceIds?: string[] }).evidenceIds ?? []).map((id) => <EvidenceChip key={id} claimId={e.claimId!} evidenceId={id} />) : null;
+  };
+  /** Source link of a page action, small and wrapped inside the bubble. */
+  const footer = (e: InvestigationEvent | undefined) => {
+    const url = e ? eventExtras(e).url : null;
+    return url ? (
+      <a href={url} target="_blank" rel="noopener noreferrer nofollow" className="hover:text-navy">
+        {url}
+      </a>
+    ) : null;
+  };
 
   const bubbleHeader = (e: InvestigationEvent) => {
     const d = e.data as { messageType?: string; argumentId?: string; referencedArgumentIds?: string[]; step?: string; unsupported?: boolean };
@@ -150,12 +190,17 @@ export default function InvestigationStage({
         <button className="rounded border border-rule bg-white px-2 py-1" onClick={() => setPaused((p) => !p)} aria-label={paused ? t('anim.resume') : t('anim.pause')}>
           {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
         </button>
-        <span className="ml-1 text-muted">{t('anim.speed')}:</span>
-        {([1, 2, 4] as const).map((s) => (
-          <button key={s} className={`rounded border px-2 py-1 ${speed === s ? 'border-navy text-navy' : 'border-rule bg-white'}`} onClick={() => setSpeed(s)}>
-            {s}x
-          </button>
-        ))}
+        {/* Speed control only for replays: a live session follows the real pace. */}
+        {finished && (
+          <>
+            <span className="ml-1 text-muted">{t('anim.speed')}:</span>
+            {([1, 2, 4] as const).map((s) => (
+              <button key={s} className={`rounded border px-2 py-1 ${speed === s ? 'border-navy text-navy' : 'border-rule bg-white'}`} onClick={() => setSpeed(s)}>
+                {s}x
+              </button>
+            ))}
+          </>
+        )}
         <button className="rounded border border-rule bg-white px-2 py-1" onClick={() => setPointer(Math.max(-1, ([...stageStarts].reverse().find((i) => i < pointer) ?? -1)))} aria-label={t('anim.prevStage')} title={t('anim.prevStage')}>
           <SkipBack className="h-3.5 w-3.5" />
         </button>
@@ -223,12 +268,25 @@ export default function InvestigationStage({
         </div>
         <div className="mt-6 flex flex-wrap items-end justify-center gap-3 border-t border-rule pt-4">
           {workbench.map((a) => (
-            <PixelAgent key={a} agent={a} size={52} state={benchActive === a ? (a === 'researcher' ? 'researching' : 'talking') : 'idle'} />
+            <PixelAgent
+              key={a}
+              agent={a}
+              size={52}
+              state={
+                benchActive === a
+                  ? a === 'researcher' || a === 'claim_extractor'
+                    ? 'researching'
+                    : 'talking'
+                  : working.has(a)
+                    ? 'researching'
+                    : 'idle'
+              }
+            />
           ))}
         </div>
         <div className="mt-3 flex justify-center">
           {current && !isDebate && current.type !== 'judge_decision' ? (
-            <SpeechBubble agent={benchActive ?? 'system'} side="top" header={stageLabel(t, current.stageKey, claimNumber)} text={describeEvent(current, t, claimNumber)} typeMs={TECHNICAL.has(current.type) ? 0 : 18} />
+            <SpeechBubble agent={benchActive ?? 'system'} side="top" header={stageLabel(t, current.stageKey, claimNumber)} text={describeEvent(current, t, claimNumber)} chips={chips(current)} footer={footer(current)} typeMs={TECHNICAL.has(current.type) ? 0 : 18} />
           ) : (
             !current && <p className="text-sm text-muted">{t('anim.waiting')}</p>
           )}
@@ -242,7 +300,7 @@ export default function InvestigationStage({
           return (
             <li key={e.seq} className="flex items-start gap-2">
               {a ? <PixelAgent agent={a} size={40} label={false} state={e === current ? 'talking' : 'idle'} /> : <span className="w-10" />}
-              <SpeechBubble agent={a ?? 'system'} side="left" header={stageLabel(t, e.stageKey, claimNumber)} text={describeEvent(e, t, claimNumber)} chips={chips(e)} typeMs={e === current && !TECHNICAL.has(e.type) ? 18 : 0} />
+              <SpeechBubble agent={a ?? 'system'} side="left" header={stageLabel(t, e.stageKey, claimNumber)} text={describeEvent(e, t, claimNumber)} chips={chips(e)} footer={footer(e)} typeMs={e === current && !TECHNICAL.has(e.type) ? 18 : 0} />
             </li>
           );
         })}
