@@ -89,6 +89,26 @@ function MessageBlock({ m, report }: { m: DebateMessage; report: Report }) {
   );
 }
 
+/** A collapsible debate round whose content is rendered only once it is opened. */
+function DebateRound({ title, defaultOpen, children }: { title: string; defaultOpen: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const [rendered, setRendered] = useState(defaultOpen);
+  return (
+    <details
+      className="mb-4 rounded-lg border border-rule bg-white p-4"
+      open={open}
+      onToggle={(e) => {
+        const isOpen = (e.currentTarget as HTMLDetailsElement).open;
+        setOpen(isOpen);
+        if (isOpen) setRendered(true);
+      }}
+    >
+      <summary className="cursor-pointer text-sm font-medium text-muted">{title}</summary>
+      {rendered && <div className="mt-3">{children}</div>}
+    </details>
+  );
+}
+
 function ArgumentMap({ report }: { report: Report }) {
   const { t } = useI18n();
   const args = report.messages.filter((m) => m.messageType === 'argument' && m.argumentId);
@@ -384,9 +404,8 @@ export default function Results() {
       {/* Debate */}
       {report.messages.length > 0 && (
         <Section title={t('res.debate')}>
-          {steps.map((step) => (
-            <div key={step} className="mb-6">
-              <h3 className="mb-3 text-sm font-medium text-muted">{t(`step.${step}` as StringKey)}</h3>
+          {steps.map((step, i) => (
+            <DebateRound key={step} title={t(`step.${step}` as StringKey)} defaultOpen={i === steps.length - 1}>
               <div className="grid gap-4 md:grid-cols-2">
                 {(['defender', 'prosecutor'] as const).map((side) => (
                   <div key={side} className="space-y-2">
@@ -402,7 +421,7 @@ export default function Results() {
                   </div>
                 ))}
               </div>
-            </div>
+            </DebateRound>
           ))}
         </Section>
       )}

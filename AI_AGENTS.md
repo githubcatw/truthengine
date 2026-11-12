@@ -8,7 +8,7 @@ Every call goes through `callStructured`, which does three things:
 - runs deterministic checks after the schema passes;
 - allows exactly one repair retry that names the problem, then fails with `AI_OUTPUT_INVALID`.
 
-Each claim-level call begins with the fixed TOPIC block. The output's `claimId`, `debateId` and `topicHash` are checked in code before anything else. No keyword-overlap relevance check exists, so valid reasoning that uses synonyms or translations is not rejected. The optional batched semantic check from PART 11.1 rule 4 is not implemented, because the identifier checks have been sufficient.
+Each claim-level call begins with the fixed TOPIC block. The output's `claimId`, `debateId` and `topicHash` are checked in code before anything else. No keyword-overlap relevance check exists, so valid reasoning that uses synonyms or translations is not rejected. The optional batched semantic check from PART 11.1 rule 4 is deliberately not implemented. The identifiers are pinned as single-value enums in the response schema and checked in code, so a mismatch is caught deterministically and repaired once. A semantic check would add a Gemini call to every step for little gain (PART 0.6).
 
 Model names are set in `src/server/config.ts`. The `fast` model handles extraction, triage, research and the debate; the `judge` model is used only by the Judge. Temperature is 0 for extraction, triage and the Judge, and low for research.
 

@@ -94,6 +94,7 @@ export const en = {
   'reject.irrelevant': "irrelevant",
   'reject.weak_source': "weak source",
   'reject.wrong_conditions': "wrong conditions",
+  'inv.group': "{n} research steps",
   'nav.dashboard': 'Dashboard',
   'nav.new': 'New verification',
   'nav.history': 'History',

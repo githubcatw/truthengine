@@ -35,6 +35,18 @@ function agentForStage(stageKey: string): AgentKind | null {
   return null;
 }
 
+/** Groups consecutive research-log events of the same stage (groupId) for the transcript. */
+export function groupTranscript(events: InvestigationEvent[]): InvestigationEvent[][] {
+  const out: InvestigationEvent[][] = [];
+  for (const e of events) {
+    const last = out.at(-1);
+    const prev = last?.at(-1);
+    if (last && prev && e.type === 'research_log' && prev.type === 'research_log' && e.groupId && e.groupId === prev.groupId) last.push(e);
+    else out.push([e]);
+  }
+  return out;
+}
+
 const SiteChip = ({ site }: { site: string }) => <span className="rounded border border-rule bg-paper px-1.5 py-0.5 text-[11px] text-ink">{site}</span>;
 
 function agentOf(e: InvestigationEvent | undefined): AgentKind | null {
@@ -326,13 +338,40 @@ export default function InvestigationStage({
       <details className="rounded-lg border border-rule bg-white p-4" open={reduce}>
         <summary className="cursor-pointer text-sm font-medium">{t('inv.transcript')}</summary>
         <ol className="mt-3 max-h-96 space-y-1 overflow-auto text-sm" aria-live="polite">
-          {shown.map((e) => (
-            <li key={e.seq} className="border-b border-rule/60 pb-1">
-              <span className="mr-2 font-pixel text-[8px] text-muted">#{e.seq}</span>
-              {e.agentType && <span className="mr-1 font-medium">{t(`agent.${e.agentType}` as never)}{t('punct.label')}</span>}
-              {describeEvent(e, t, claimNumber)}
-            </li>
-          ))}
+          {groupTranscript(shown).map((g) => {
+            const line = (e: InvestigationEvent) => (
+              <>
+                <span className="mr-2 font-pixel text-[8px] text-muted">#{e.seq}</span>
+                {e.agentType && <span className="mr-1 font-medium">{t(`agent.${e.agentType}` as never)}{t('punct.label')}</span>}
+                {describeEvent(e, t, claimNumber)}
+              </>
+            );
+            if (g.length === 1) {
+              return (
+                <li key={g[0]!.seq} className="border-b border-rule/60 pb-1">
+                  {line(g[0]!)}
+                </li>
+              );
+            }
+            // Small technical steps of one stage are grouped, keeping their real order.
+            const first = g[0]!;
+            return (
+              <li key={first.seq} className="border-b border-rule/60 pb-1">
+                <details>
+                  <summary className="cursor-pointer">
+                    <span className="mr-2 font-pixel text-[8px] text-muted">#{first.seq}–{g.at(-1)!.seq}</span>
+                    {first.agentType && <span className="mr-1 font-medium">{t(`agent.${first.agentType}` as never)}{t('punct.label')}</span>}
+                    {t('inv.group', { n: g.length })}
+                  </summary>
+                  <ol className="ml-4 mt-1 space-y-1">
+                    {g.map((e) => (
+                      <li key={e.seq}>{line(e)}</li>
+                    ))}
+                  </ol>
+                </details>
+              </li>
+            );
+          })}
         </ol>
       </details>
     </div>

@@ -95,6 +95,7 @@ export const hy: Record<StringKey, string> = {
   'reject.irrelevant': "չի վերաբերում",
   'reject.weak_source': "թույլ աղբյուր",
   'reject.wrong_conditions': "սխալ պայմաններ",
+  'inv.group': "{n} հետազոտական քայլ",
   'nav.dashboard': 'Գլխավոր վահանակ',
   'nav.new': 'Նոր ստուգում',
   'nav.history': 'Պատմություն',

@@ -121,7 +121,7 @@ describe('UI end-to-end', () => {
     await expect.poll(() => header.innerText()).toContain('southern market hall');
     // The transcript of this courtroom contains no search for the other claim.
     await page.getByText('Text transcript').click();
-    const transcript = await page.locator('details ol').innerText();
+    const transcript = (await page.locator('ol[aria-live]').textContent()) ?? '';
     expect(transcript).not.toContain('northern bridge');
     expect(transcript).toContain('southern market hall');
 

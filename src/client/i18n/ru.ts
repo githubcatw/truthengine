@@ -95,6 +95,7 @@ export const ru: Record<StringKey, string> = {
   'reject.irrelevant': "не относится к делу",
   'reject.weak_source': "слабый источник",
   'reject.wrong_conditions': "неверные условия",
+  'inv.group': "Шагов поиска: {n}",
   'nav.dashboard': 'Главная',
   'nav.new': 'Новая проверка',
   'nav.history': 'История',
