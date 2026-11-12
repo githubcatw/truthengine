@@ -3,18 +3,18 @@
 import { PedagogueOutputSchema } from '../../../shared/agents';
 import type { DebateMessage } from '../../../shared/schemas';
 import { agentCall } from '../../agents/call';
-import { PEDAGOGUE, languageName, render } from '../../agents/prompts';
+import { PEDAGOGUE, languageLock, languageName, render } from '../../agents/prompts';
 import { MAX_OUTPUT_TOKENS, MODELS, TEMPERATURE } from '../../config';
 import { evidenceIdError } from '../../validation/contract';
 import { C, col } from '../store';
-import { loadTopic } from '../topic';
+import { loadDebateSetup } from '../topic';
 import type { StageContext, StageResult } from '../types';
 import { formatEvidence } from './debate';
 import { loadEvidence } from './research';
 
 export async function runPedagogue(ctx: StageContext): Promise<StageResult> {
   const claim = ctx.claim!;
-  const topic = await loadTopic(claim);
+  const { topic, language } = await loadDebateSetup(claim, ctx.job);
   const [evidence, decisionSnap, msgSnap] = await Promise.all([
     loadEvidence(claim.claimId),
     col(C.decisions).doc(`${claim.claimId}_judge`).get(),
@@ -31,7 +31,7 @@ export async function runPedagogue(ctx: StageContext): Promise<StageResult> {
     topic,
     schema: PedagogueOutputSchema,
     model: MODELS.fast,
-    system: render(PEDAGOGUE, { GRADE: String(ctx.job.gradeLevel ?? 9), LANGUAGE: languageName(ctx.job.outputLanguage) }),
+    system: render(PEDAGOGUE, { GRADE: String(ctx.job.gradeLevel ?? 9), LANGUAGE: languageName(language) }),
     body: [
       `VERDICT: ${decision.verdict} (basis: ${decision.verdictBasis}; evidence strength: ${decision.evidenceStrength})`,
       `JUDGE REASONING: I choose the ${decision.winner === 'DEFENDER' ? 'Defender' : 'Prosecutor'} because ${decision.reasoning}`,
@@ -39,6 +39,7 @@ export async function runPedagogue(ctx: StageContext): Promise<StageResult> {
       `NOT ESTABLISHED: ${decision.whatWasNotEstablished.join(' | ') || 'none'}`,
       `EVIDENCE:\n${formatEvidence(usable)}`,
       `ARGUMENTS:\n${messages.filter((m) => m.argumentId).map((m) => `${m.argumentId}: ${m.content}`).join('\n')}`,
+      languageLock(language),
     ].join('\n\n'),
     temperature: TEMPERATURE.pedagogue,
     maxOutputTokens: MAX_OUTPUT_TOKENS.pedagogue,
@@ -63,7 +64,7 @@ export async function runPedagogue(ctx: StageContext): Promise<StageResult> {
         claimId: claim.claimId,
         jobId: ctx.job.jobId,
         userId: ctx.job.userId,
-        language: ctx.job.outputLanguage,
+        language,
         gradeLevel: ctx.job.gradeLevel,
         explanation: out.explanation,
         keyLesson: out.keyLesson,

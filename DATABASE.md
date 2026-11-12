@@ -15,7 +15,7 @@ All writes go through the server. Every user-owned record carries a `userId`. Gr
 | `researchLog/{id}` | `claimId`, `agentType`, `action` (`search_query`, `fetch_page`, `read_pdf`, `quote_verified`, `retrieval_failed`, `source_rejected`, `research_stopped` or `kb_lookup`), `queryOrUrl`, `resultSummary`, `failureReason`, `timestampMs` |
 | `evidence/{claimId}_{E#}` | the PART 9.5 fields plus `domain`, `snippet`, `conditionsMatch`, `conditionsNote`, `countsAsIndependent`, `trustedSource` |
 | `agentAnalyses/{id}` | triage output and research state (plan, queries, leads, budget used, stop reason) |
-| `debates/{claimId}_debate` | `mode`, `status`, `topic` (the full stored `DebateTopic`, including `topicHash`), stances |
+| `debates/{claimId}_debate` | `mode`, `status`, `topic` (the full stored `DebateTopic`, including `topicHash`), `language` (pinned at creation; every round, the Judge and the Pedagogue write in it), stances |
 | `debateMessages/{id}` | `debateId`, `claimId`, `agentType`, `roundNumber`, `stepName`, `messageType`, `argumentId`, `referencedArgumentIds`, `referencedEvidenceIds`, `content`, `details`, `unsupportedAssertion`, `order` |
 | `argumentChallenges/{debateId}_{C#}` | `challengedArgumentId`, `challengingArgumentId`, `challengeType`, `explanation`, `response`, `outcome` |
 | `judgeDecisions/{claimId}_judge` | `winner`, `verdict` (`CORRECT` or `WRONG` only), `verdictBasis`, `reasoning`, `whatWasEstablished`, `whatWasNotEstablished`, `decisiveEvidenceIds`, accepted and rejected arguments, `evidenceStrength`, `limitations`, `believability`, `positionOrder` |

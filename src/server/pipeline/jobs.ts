@@ -201,6 +201,7 @@ export async function confirmClaims(user: AuthedUser, jobId: string, selections:
           mode: null,
           status: 'pending',
           topic,
+          language: current.outputLanguage,
           createdAtMs: Date.now(),
         });
       } else {
@@ -243,7 +244,9 @@ export async function createFollowupJob(
       researchMode: opts.deep ? 'detailed' : (old.researchMode ?? 'detailed'),
       supersedes: oldJobId,
       prefilledClaims: true,
-      outputLanguage: user.preferredLanguage,
+      // Follow-ups continue in the language the original investigation started in,
+      // not whatever locale the user has switched to since.
+      outputLanguage: oldCurrent.outputLanguage ?? old.outputLanguage,
     });
     commitQuota();
     tx.set(jobRef(jobId), { ...job, createdAt: FieldValue.serverTimestamp(), startedAt: FieldValue.serverTimestamp() });
@@ -280,6 +283,7 @@ export async function createFollowupJob(
         mode: null,
         status: 'pending',
         topic,
+        language: job.outputLanguage,
         createdAtMs: Date.now(),
       });
     });

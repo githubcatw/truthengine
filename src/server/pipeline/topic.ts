@@ -1,6 +1,6 @@
 import { AppError } from '../errors';
 import { computeTopicHash } from '../validation/contract';
-import type { DebateTopic } from '../../shared/schemas';
+import type { DebateTopic, Language } from '../../shared/schemas';
 import { C, col } from './store';
 import type { ClaimDoc, JobDoc } from './types';
 
@@ -33,7 +33,18 @@ export function buildTopic(claim: ClaimDoc, job: JobDoc): DebateTopic {
 }
 
 export async function loadTopic(claim: ClaimDoc): Promise<DebateTopic> {
+  return (await loadDebateSetup(claim, null)).topic;
+}
+
+/**
+ * The locked topic plus the language the debate is written in. The language is
+ * pinned on the debate document when the debate is created, so every round, the
+ * Judge and the Pedagogue keep using it even if the user changes their locale.
+ * Debates created before the language was pinned fall back to the job's language.
+ */
+export async function loadDebateSetup(claim: ClaimDoc, job: Pick<JobDoc, 'outputLanguage'> | null): Promise<{ topic: DebateTopic; language: Language }> {
   const snap = await col(C.debates).doc(debateIdFor(claim.claimId)).get();
   if (!snap.exists) throw new AppError('INTERNAL', 'The debate topic for this claim is missing.');
-  return snap.get('topic') as DebateTopic;
+  const language = (snap.get('language') as Language | undefined) ?? job?.outputLanguage ?? claim.language;
+  return { topic: snap.get('topic') as DebateTopic, language };
 }

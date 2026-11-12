@@ -16,18 +16,17 @@ import {
   type DebateMessage,
   type DebateSide,
   type DebateStep,
-  type DebateTopic,
   type EvidenceRecord,
   type MessageType,
 } from '../../../shared/schemas';
 import { agentCall } from '../../agents/call';
-import { DEFENDER, PROSECUTOR, STEP_INSTRUCTIONS, languageName, render } from '../../agents/prompts';
+import { DEFENDER, PROSECUTOR, STEP_INSTRUCTIONS, languageLock, languageName, render } from '../../agents/prompts';
 import { wrapUntrusted } from '../../ai/untrusted';
 import { MAX_OUTPUT_TOKENS, MODELS, TEMPERATURE } from '../../config';
 import { evidenceIdError, excerptLabel, normalizeWhitespace } from '../../validation/contract';
 import { debateSteps, stageKeys } from '../plan';
 import { C, col, stageRef, type EventInput } from '../store';
-import { loadTopic } from '../topic';
+import { loadDebateSetup } from '../topic';
 import type { ClaimDoc, StageContext, StageResult, StageRunDoc } from '../types';
 import { loadEvidence } from './research';
 
@@ -361,12 +360,12 @@ export function stepsToSkipAfterConcession(claim: ClaimDoc): DebateStep[] {
 export function runDebateStep(step: DebateStep) {
   return async (ctx: StageContext): Promise<StageResult> => {
     const claim = ctx.claim!;
-    const topic: DebateTopic = await loadTopic(claim);
+    const { topic, language: debateLanguage } = await loadDebateSetup(claim, ctx.job);
     const evidence = (await loadEvidence(claim.claimId)).filter((e) => e.provenanceStatus !== 'retrieval_failed');
     const byId = new Map(evidence.map((e) => [e.evidenceId, e]));
     const { messages, challenges } = await loadDebate(topic.debateId);
     const base = { debateId: topic.debateId, claimId: claim.claimId, jobId: ctx.job.jobId, userId: ctx.job.userId };
-    const language = languageName(ctx.job.outputLanguage);
+    const language = languageName(debateLanguage);
 
     const outputs: SideOutput[] = await Promise.all(
       SIDES.map(async (side) => {
@@ -376,7 +375,7 @@ export function runDebateStep(step: DebateStep) {
           schema: schemaFor(step),
           model: MODELS.fast,
           system: render(side === 'defender' ? DEFENDER : PROSECUTOR, { LANGUAGE: language }),
-          body: buildBody(step, side, evidence, messages, challenges),
+          body: `${buildBody(step, side, evidence, messages, challenges)}\n\n${languageLock(debateLanguage)}`,
           temperature: TEMPERATURE.debate,
           maxOutputTokens: MAX_OUTPUT_TOKENS.debate,
           postValidate: (v) => validateSideOutput(step, side, v as Record<string, unknown>, { byId, messages, challenges }),

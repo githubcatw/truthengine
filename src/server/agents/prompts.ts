@@ -19,7 +19,7 @@ export function topicBlock(t: DebateTopic): string {
     `topicStatement: ${t.topicStatement}`,
     `originalText: ${t.originalText}`,
     `subject: ${t.context.subject}`,
-    `language: ${t.context.language}`,
+    `claim text language: ${t.context.language} (the language the claim is written in; not necessarily the language to answer in)`,
     t.context.timeframe ? `timeframe: ${t.context.timeframe}` : null,
     t.context.place ? `place: ${t.context.place}` : null,
     t.context.population ? `population: ${t.context.population}` : null,
@@ -28,6 +28,12 @@ export function topicBlock(t: DebateTopic): string {
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+/** Appended to every debate step so the agents never drift away from the debate's language between rounds. */
+export function languageLock(l: keyof typeof LANGUAGE_NAMES): string {
+  const name = LANGUAGE_NAMES[l];
+  return `OUTPUT LANGUAGE (locked for this whole debate): write every prose field in ${name}, exactly as in the earlier rounds. Keep using ${name} even if the evidence, the earlier messages, the claim or these instructions are in another language. Only verbatim quotations of evidence stay in their original language.`;
 }
 
 export const SHARED_HONESTY = `

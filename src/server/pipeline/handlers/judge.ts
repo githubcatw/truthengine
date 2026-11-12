@@ -5,11 +5,11 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { JudgeOutputSchema, type JudgeOutput } from '../../../shared/agents';
 import { isVerdictBasisConsistent, verdictForWinner, type DebateMessage, type EvidenceRecord } from '../../../shared/schemas';
 import { agentCall } from '../../agents/call';
-import { JUDGE, languageName, render } from '../../agents/prompts';
+import { JUDGE, languageLock, languageName, render } from '../../agents/prompts';
 import { MAX_OUTPUT_TOKENS, MODELS, TEMPERATURE } from '../../config';
 import { evidenceIdError } from '../../validation/contract';
 import { C, col } from '../store';
-import { loadTopic } from '../topic';
+import { loadDebateSetup } from '../topic';
 import type { StageContext, StageResult } from '../types';
 import { formatEvidence, type ChallengeDoc } from './debate';
 import { independentCount, loadEvidence } from './research';
@@ -63,7 +63,7 @@ function sideBlock(label: 'DEFENDER' | 'PROSECUTOR', messages: DebateMessage[], 
 
 export async function runJudge(ctx: StageContext): Promise<StageResult> {
   const claim = ctx.claim!;
-  const topic = await loadTopic(claim);
+  const { topic, language } = await loadDebateSetup(claim, ctx.job);
   const evidence = await loadEvidence(claim.claimId);
   const [msgSnap, chSnap] = await Promise.all([
     col(C.messages).where('debateId', '==', topic.debateId).get(),
@@ -84,11 +84,12 @@ export async function runJudge(ctx: StageContext): Promise<StageResult> {
     topic,
     schema: JudgeOutputSchema,
     model: MODELS.judge,
-    system: render(JUDGE, { LANGUAGE: languageName(ctx.job.outputLanguage) }),
+    system: render(JUDGE, { LANGUAGE: languageName(language) }),
     body: [
       `EVIDENCE RECORDS (layer A provenance, layer B quality, layer C provisional relation):\n${formatEvidence(usable)}`,
       ...blocks,
       'Decide the verdict.',
+      languageLock(language),
     ].join('\n\n'),
     temperature: TEMPERATURE.judge,
     maxOutputTokens: MAX_OUTPUT_TOKENS.judge,
