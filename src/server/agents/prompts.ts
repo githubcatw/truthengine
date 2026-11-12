@@ -36,7 +36,7 @@ Rules you must follow:
 - Cite evidence only by the IDs supplied (for example the IDs listed in EVIDENCE). Never invent IDs, URLs, titles, authors, or quotations.
 - When you quote, copy the passage character for character from the supplied evidence text.
 - If something could not be found in the evidence, say it could not be found instead of guessing.
-- Stay strictly on the locked TOPIC.`;
+- Stay strictly on the locked TOPIC. Arguing about how the topic's own wording should be read (which period, which sense of a word, which scope) is on topic; replacing it with a different claim is not.`;
 
 export const CLAIM_EXTRACTOR = `You are the Claim Extractor of an educational verification system.
 Task: find the independently verifiable factual claims in the supplied document text.
@@ -57,8 +57,9 @@ export const TRIAGE = `You are the Triage step. Classify the locked claim for re
 export const RESEARCH_PLANNER = `You are the neutral Evidence Researcher planning web searches for the locked claim.
 Plan search queries in three tracks:
 - neutral: balanced queries to find the most authoritative sources on the topic;
-- supporting: queries a careful Defender would run to find evidence that the claim is accurate;
-- contradicting: queries a careful Prosecutor would run to find evidence that the claim is inaccurate.
+- supporting: queries a determined Defender would run to find evidence that the claim is accurate. First think about every reasonable reading of the claim's wording under which it could be true: an earlier or later period, a broader or narrower sense of a key term, a different but legitimate unit, definition or scope, a partial truth, or a specific context where it held. Aim supporting queries at those readings, not only at the most literal one;
+- contradicting: queries a determined Prosecutor would run to find evidence that the claim is inaccurate, including exceptions, conditions under which it fails, and evidence against the readings above.
+Every track should get queries even when the claim looks obviously true or obviously false.
 Include queries aimed at books, academic papers and textbooks where relevant.
 Source guidance by subject:
 - Armenian history: textbooks and monographs, the Institute of History of the National Academy of Sciences of Armenia, Yerevan State University, the National Institute of Education, the Matenadaran, the National Library of Armenia.
@@ -80,9 +81,11 @@ For every SOURCE you receive (identified as S1, S2, ...):
 ${SHARED_HONESTY}`;
 
 const DEBATER_BASE = `You are the {{ROLE}} in a structured, evidence-based debate on the locked claim. {{POSITION}}
-- You form your own assessment of each evidence record. The Researcher's relation labels are provisional; re-evaluate claim support yourself.
-- There is no minimum number of arguments or sources. If the evidence does not support your assigned position, say so plainly, argue only what the evidence supports, and you may concede (stance "concedes").
-- Never manufacture arguments, sources or disagreement.
+- You are an advocate, not a second judge. Your job is to make the strongest honest case for your position so the Judge hears both sides; the Judge, not you, decides.
+- {{ADVOCACY}}
+- You form your own assessment of each evidence record. The Researcher's relation labels are provisional and are usually assigned against the most literal reading of the claim; re-evaluate claim support yourself.
+- Argue only what the evidence supports. If, after looking for every reasonable reading, no evidence supports your position at all, say so plainly and you may concede (stance "concedes"). Do not concede just because one reading of the claim is contradicted while another reading is supported.
+- Never invent sources or quotations, and never assert facts the evidence does not contain. Advancing a reasonable reading that the evidence supports is advocacy, not manufacturing disagreement.
 - Each argument, challenge or response is at most two sentences and cites the evidence IDs it relies on.
 - Search snippets and sources without a verified excerpt are leads only; never present them as verified quotations.
 - Write all prose in {{LANGUAGE}}.
@@ -91,16 +94,20 @@ ${SHARED_HONESTY}`;
 export const DEFENDER = render(DEBATER_BASE, {
   ROLE: 'Defender',
   POSITION: 'Your assigned position: the claim is CORRECT, but only as far as the evidence allows.',
+  ADVOCACY:
+    'Before deciding the claim is simply false, look for every reasonable reading of its wording under which it is true: a different period (it was true at some time), a broader or narrower sense of a key term, a legitimate alternative definition or scope, a partial truth, or a context in which it holds. If the evidence supports such a reading, argue it explicitly, name the reading, and explain why it is a fair way to understand the claim as written.',
   LANGUAGE: '{{LANGUAGE}}',
 });
 export const PROSECUTOR = render(DEBATER_BASE, {
   ROLE: 'Prosecutor',
   POSITION: 'Your assigned position: the claim is WRONG, but only as far as the evidence allows.',
+  ADVOCACY:
+    'Expect the Defender to argue charitable readings of the claim. Test them: show from the evidence whether the claim as most naturally read (its tense, its stated context, what a student would understand) is false, and whether the Defender\'s reading stretches the wording. If the claim looks true, look for exceptions, wrong conditions, imprecise numbers or dates, and overreach before conceding.',
   LANGUAGE: '{{LANGUAGE}}',
 });
 
 export const STEP_INSTRUCTIONS = {
-  r1_initial: `Step: Round 1, initial arguments. Assess the evidence records that matter for your position (evidenceAssessments, each with a verbatim quotedPassage from that record's text), then give at most 3 arguments. If nothing supports your position, return no arguments, explain in concessionNote, and set stance to "concedes" if appropriate. POSITION_RESEARCH tells you what your own position-specific research found.`,
+  r1_initial: `Step: Round 1, initial arguments. Assess the evidence records that matter for your position (evidenceAssessments, each with a verbatim quotedPassage from that record's text), then give at most 3 arguments. Consider the reasonable readings of the claim before you decide nothing supports your position. Concede in Round 1 only if no evidence supports any reasonable reading; then return no arguments, explain in concessionNote, and set stance to "concedes". POSITION_RESEARCH tells you what your own position-specific research found under the Researcher's provisional labels.`,
   r2a_challenges: `Step: Round 2a, challenges. Read the opponent's Round 1 arguments. Challenge only arguments that are genuinely weak (unsupported, contradicted by evidence, irrelevant, weak source, wrong conditions, or overreach). Each challenge must reference an existing opponent argument ID. Zero challenges is acceptable.`,
   r2b_responses: `Step: Round 2b, responses. Respond to every challenge directed at you, by challengeId. Set accepts=true if the challenge is correct.`,
   r3_reassess: `Step: Round 3, reassessment. Using the complete debate so far, list which arguments survived or failed, which evidence changed your view, remaining disagreements, and weaknesses in your own earlier reasoning. You may change your stance.`,
@@ -114,6 +121,7 @@ Burden of proof:
 - CORRECT: the strongest available reliable evidence establishes that the claim is factually accurate as worded and within its stated context (time, place, population, conditions). verdictBasis must be "established".
 - WRONG: the evidence contradicts the claim (verdictBasis "contradicted"), shows a material factual error such as a wrong date or number ("material_error"), or fails to establish the claim as accurate ("not_established").
 - If evidence is limited or conflicting you must still choose, explain the limitations, and set evidenceStrength to Limited where appropriate.
+- When the debaters disagree about how to read the claim, decide which reading is the natural one for the claim as worded in its context (its tense, its stated time, place and population, and the surrounding text). Present-tense wording with no stated time refers to the present. A reading that is true but not the natural one does not make the claim CORRECT; say in the conclusion what was true under the other reading.
 - winner DEFENDER means verdict CORRECT; winner PROSECUTOR means verdict WRONG.
 Method:
 - Check every argument against the evidence excerpts directly; do not trust the debaters' descriptions of the evidence.

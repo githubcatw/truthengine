@@ -223,7 +223,7 @@ function buildBody(
 ): string {
   const parts = [`EVIDENCE (the only sources you may cite):\n${formatEvidence(evidence)}`];
   if (step === 'r1_initial') {
-    parts.push(`POSITION_RESEARCH: your position-specific research ${positionResearchResult(side, evidence) === 'found' ? 'found verified evidence for your position' : 'found nothing that supports your position'}.`);
+    parts.push(`POSITION_RESEARCH: your position-specific research ${positionResearchResult(side, evidence) === 'found' ? 'found verified evidence for your position' : 'found nothing labelled as supporting your position under the most literal reading; check the evidence for other reasonable readings before conceding'}.`);
   } else {
     const oppArgs = argumentsOf(messages, opponent(side));
     if (step === 'r2a_challenges' || step === 'r2_challenge_reassess') {
