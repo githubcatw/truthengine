@@ -2,7 +2,7 @@
 // topic edit → supersede), cancel, and the job view returned to clients.
 import { FieldValue } from 'firebase-admin/firestore';
 import { orderedQuery } from '../firestoreQuery';
-import { TERMINAL_JOB_STATUSES, type Language, type Subject } from '../../shared/schemas';
+import { TERMINAL_JOB_STATUSES, type Language, type ResearchMode, type Subject } from '../../shared/schemas';
 import type { AuthedUser } from '../auth';
 import { PIPELINE, USAGE_LIMITS } from '../config';
 import { AppError } from '../errors';
@@ -30,6 +30,7 @@ function newJob(input: {
   classroomId: string | null;
   assignmentId: string | null;
   deep: boolean;
+  researchMode: ResearchMode;
   supersedes: string | null;
   prefilledClaims: boolean;
   outputLanguage: Language;
@@ -44,6 +45,7 @@ function newJob(input: {
     supersededBy: null,
     supersedes: input.supersedes,
     deep: input.deep,
+    researchMode: input.researchMode,
     outputLanguage: input.outputLanguage,
     gradeLevel: input.user.gradeLevel,
     sourceType: input.sourceType,
@@ -82,6 +84,7 @@ export interface CreateSubmissionInput {
   idempotencyKey: string;
   fileId: string | null;
   assignmentId: string | null;
+  researchMode: ResearchMode;
 }
 
 export async function createSubmission(user: AuthedUser, input: CreateSubmissionInput) {
@@ -117,6 +120,7 @@ export async function createSubmission(user: AuthedUser, input: CreateSubmission
       classroomId,
       assignmentId: input.assignmentId,
       deep: false,
+      researchMode: input.researchMode,
       supersedes: null,
       prefilledClaims: false,
       outputLanguage: user.preferredLanguage,
@@ -235,6 +239,8 @@ export async function createFollowupJob(
       classroomId: old.classroomId,
       assignmentId: old.assignmentId,
       deep: opts.deep,
+      // A deeper investigation always searches afresh.
+      researchMode: opts.deep ? 'detailed' : (old.researchMode ?? 'detailed'),
       supersedes: oldJobId,
       prefilledClaims: true,
       outputLanguage: user.preferredLanguage,

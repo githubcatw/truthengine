@@ -6,6 +6,7 @@ import type {
   DebateMode,
   JobStatus,
   Language,
+  ResearchMode,
   StageStatus,
   Subject,
   TimeSensitivity,
@@ -24,6 +25,8 @@ export interface JobDoc {
   supersedes: string | null;
   /** "Run deeper investigation": larger budget and full debate mode. */
   deep: boolean;
+  /** Missing on jobs created before the mode existed: treated as `detailed`. */
+  researchMode?: ResearchMode;
   outputLanguage: Language;
   gradeLevel: number | null;
   sourceType: 'text' | 'document';

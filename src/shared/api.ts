@@ -1,6 +1,6 @@
 // Request bodies shared by client and server.
 import { z } from 'zod';
-import { LanguageSchema, RoleSchema, SubjectSchema } from './schemas';
+import { LanguageSchema, ResearchModeSchema, RoleSchema, SubjectSchema } from './schemas';
 
 export const UpdateProfileSchema = z.object({
   displayName: z.string().trim().min(1).max(80).optional(),
@@ -15,6 +15,7 @@ export const CreateSubmissionSchema = z.object({
   idempotencyKey: z.string().min(8).max(100),
   fileId: z.string().max(100).nullable().default(null),
   assignmentId: z.string().max(100).nullable().default(null),
+  researchMode: ResearchModeSchema.default('detailed'),
 });
 
 export const ConfirmClaimsSchema = z.object({

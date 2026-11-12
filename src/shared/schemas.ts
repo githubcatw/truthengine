@@ -184,6 +184,10 @@ export const EvidenceRecordSchema = z.object({
 });
 export type EvidenceRecord = z.infer<typeof EvidenceRecordSchema>;
 
+/** fast: reuse saved queries and searches from similar earlier questions. detailed: plan and search afresh. */
+export const ResearchModeSchema = z.enum(['fast', 'detailed']);
+export type ResearchMode = z.infer<typeof ResearchModeSchema>;
+
 export const ResearchActionSchema = z.enum([
   'search_query',
   'fetch_page',
