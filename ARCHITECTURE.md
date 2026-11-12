@@ -113,6 +113,19 @@ Before the first web search for a claim, `research_plan` searches stored passage
 - **Failure mode.** If embedding, the vector index or the query fails, research continues exactly as before with the web search.
 - **Write-back.** Pages fetched for a stable claim are indexed while the assessment runs. Indexing errors are logged and ignored.
 
+## Research modes (fast and detailed)
+
+The new-verification form has a **Research mode** selector, stored on the job as `researchMode` (`fast` or `detailed`; jobs without it are `detailed`). The API default is `detailed`; the form preselects `fast`.
+
+- **Fast** reuses work from similar earlier questions (`research/semanticCache.ts`):
+  - *Plan cache.* If an earlier claim is within `SEMANTIC_PLAN_SIMILARITY` (0.93) of this one, its planned queries replace the planner call.
+  - *Search cache.* If a planned query is within `SEMANTIC_QUERY_SIMILARITY` (0.92) of a saved one, the saved search results replace the Google-grounded Gemini call. A result saved for a stable claim is not reused by a time-sensitive claim past that claim's own limit.
+  - Both refuse a match when the two texts mention different numbers, because embeddings barely distinguish 1920 from 1921.
+- **Detailed** plans and searches afresh. It still writes to both caches, so later fast runs benefit.
+- **A deeper investigation is always detailed**: it never reads the semantic caches (the exact-match search cache still applies). This lets someone rerun a claim without reuse after seeing a fast result.
+- Only searching and planning are shortcut. Fetched pages are assessed, quotes are verified and verdicts are produced exactly as in detailed mode; nothing here reuses an assessment or a verdict.
+- The plan cache stores no claim text, only an embedding, the digits found in the claim and the planned queries.
+
 ## Security model
 
 - The Admin SDK bypasses Firestore rules, so every route verifies the ID token (`requireAuth`) and checks ownership or classroom-teacher access (`access.ts`). Missing records and records owned by someone else both return `NOT_FOUND`.

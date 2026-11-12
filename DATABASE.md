@@ -20,11 +20,12 @@ All writes go through the server. Every user-owned record carries a `userId`. Gr
 | `argumentChallenges/{debateId}_{C#}` | `challengedArgumentId`, `challengingArgumentId`, `challengeType`, `explanation`, `response`, `outcome` |
 | `judgeDecisions/{claimId}_judge` | `winner`, `verdict` (`CORRECT` or `WRONG` only), `verdictBasis`, `reasoning`, `whatWasEstablished`, `whatWasNotEstablished`, `decisiveEvidenceIds`, accepted and rejected arguments, `evidenceStrength`, `limitations`, `believability`, `positionOrder` |
 | `verificationResults/{claimId}` | `verdict`, `verdictBasis`, `summary`, `evidenceStrength`, `sourceCounts`, `cacheKey`, `timeSensitivity`, `completedAtMs` |
-| `searchCache`, `pageCache` | public web data only, with `expiresAtMs` |
+| `searchCache`, `pageCache` | public web data only, with `expiresAtMs`; `searchCache` also stores an `embedding` (vector) used by fast research mode |
 | `kbPublic/{sourceId}_{n}` | public passage: `sourceId`, `url`, `title`, `kind` (`web` or `wikipedia`), `chunkIndex`, `page`, `text`, `fetchedAtMs`, `embedding` (vector, 768) |
 | `kbSources/{sourceId}` | one row per indexed public page: `url`, `contentHash`, `chunkCount`, `fetchedAtMs` |
 | `kbClassroom/{materialId}_{n}` | teacher-material passage: `classroomId`, `materialId`, `teacherId`, `fileName`, `chunkIndex`, `page`, `text`, `fetchedAtMs`, `embedding` (vector, 768). Always queried with a `classroomId` filter. |
 | `classroomMaterials/{materialId}` | `classroomId`, `teacherId`, `fileName`, `status` (`indexing` or `ready`), `chunkCount`, `sizeBytes`, `createdAtMs` |
+| `planCache/{hash}` | fast research mode: `language`, `numbers` (digits in the claim), `queries`, `createdAtMs`, `embedding` (vector, 768). No claim text. |
 | `auditLogs` | `userId`, `eventType`, `resourceId`, `metadata` (no content), `timestamp` |
 
 ## Phase 2

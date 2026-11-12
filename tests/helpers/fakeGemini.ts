@@ -70,7 +70,7 @@ export function fakeGemini(scenario: Scenario = {}): GeminiClient & { calls: Gen
     embedCalls,
     count: (needle: string) => calls.filter((c) => c.systemInstruction.includes(needle)).length,
     /** Hashed bag of words: texts sharing words get high cosine similarity. Deterministic, no network. */
-    async embed({ texts }: { texts: string[]; task: 'document' | 'query' }): Promise<number[][]> {
+    async embed({ texts }: { texts: string[]; task: 'document' | 'query' | 'similarity' }): Promise<number[][]> {
       embedCalls.push(texts.length);
       return texts.map(fakeEmbedding);
     },

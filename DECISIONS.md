@@ -52,6 +52,17 @@ There is no background worker. Each investigation step runs inside a normal HTTP
 | **Teacher materials are never described to the query planner** | Planned queries go to a web search. | The planner cannot avoid duplicating what a material already says. |
 | **Materials: text only, original file not kept** | Less to protect and delete. | Teachers cannot re-download a material from the app. |
 
+## Research modes
+
+| Choice | Why | Cost |
+|---|---|---|
+| **Cache queries and search results, not assessments or verdicts** | Search and planning are the slow, repeatable part, and their output (a list of public URLs) is then checked by the normal pipeline. Reusing a verdict on similarity could return the wrong answer, since "X is true" and "X is false" embed close together. | The assessor, debate and judge cost the same in both modes. |
+| **Number guard** | Embeddings are close for texts differing in one year or figure, but those change what a good query is. | A reworded claim with a different formatting of the same number (such as "1,920") may miss. |
+| **High thresholds (0.92, 0.93)** | A near-miss returns the wrong sources, which costs more than a cache miss. They are starting values, not tuned on real data. | Fewer hits. |
+| **Plan cache holds no claim text** | Shared caches hold public data only; a claim may come from a private document. | Matching relies on the embedding and a digits signature. |
+| **A deeper investigation skips the semantic caches** | Its purpose is to look again without shortcuts. | It still uses the exact-match search cache, so an identical query returns the saved result. |
+| **API default `detailed`, form default `fast`** | Old clients and scripts keep today's behavior; people using the form get the faster path. | Two defaults to remember. |
+
 ## Known costs and future changes
 
 - Every event updates one counter on the job document, and parallel claims compete for it. Firestore retries those transactions. At larger scale, number events per claim.

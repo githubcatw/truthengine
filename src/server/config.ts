@@ -116,6 +116,19 @@ export const KB = {
   bruteForceMaxDocs: 5000,
 } as const;
 
+/**
+ * Fast research mode: reuse saved queries and searches from similar earlier questions.
+ * Thresholds are high on purpose: a near-miss returns the wrong sources.
+ */
+export const SEMANTIC = {
+  /** A planned query this similar to a saved one reuses its search results. */
+  querySimilarity: num('SEMANTIC_QUERY_SIMILARITY', 0.92),
+  /** A claim this similar to an earlier one reuses its planned queries. */
+  planSimilarity: num('SEMANTIC_PLAN_SIMILARITY', 0.93),
+  planMaxAgeMs: 30 * 24 * 3600_000,
+  candidates: 5,
+} as const;
+
 export const PIPELINE = {
   claimConcurrency: num('CLAIM_CONCURRENCY', 3),
   maxStageAttempts: 3,

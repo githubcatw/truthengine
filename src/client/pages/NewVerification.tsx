@@ -32,6 +32,7 @@ export default function NewVerification() {
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [researchMode, setResearchMode] = useState<'fast' | 'detailed'>('fast');
   const [assignmentTitle, setAssignmentTitle] = useState<string | null>(null);
   const key = useRef(newIdempotencyKey());
   const fileInput = useRef<HTMLInputElement>(null);
@@ -77,6 +78,7 @@ export default function NewVerification() {
         idempotencyKey: key.current,
         fileId: file?.fileId ?? null,
         assignmentId,
+        researchMode,
       });
       navigate(`/investigations/${r.jobId}`);
     } catch (e) {
@@ -179,6 +181,15 @@ export default function NewVerification() {
           )}
         </div>
       )}
+
+      <div className="mt-4 max-w-xl">
+        <Field label={t('new.mode')} hint={t(researchMode === 'fast' ? 'new.mode.fast.hint' : 'new.mode.detailed.hint')}>
+          <Select value={researchMode} onChange={(e) => setResearchMode(e.target.value as 'fast' | 'detailed')}>
+            <option value="fast">{t('new.mode.fast')}</option>
+            <option value="detailed">{t('new.mode.detailed')}</option>
+          </Select>
+        </Field>
+      </div>
 
       {error && (
         <div className="mt-4">

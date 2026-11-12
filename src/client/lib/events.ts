@@ -104,12 +104,14 @@ export function describeResearch(d: Record<string, any>, t: T, fallback: string 
   switch (d.kind) {
     case 'search': {
       const n = Array.isArray(d.sites) ? d.sites.length : 0;
-      return `“${d.query}” — ${n ? t(d.cached ? 'log.search.cached' : 'log.search', { n }) : t('log.search.none')}`;
+      return `“${d.query}” — ${n ? t(d.semantic ? 'log.search.semantic' : d.cached ? 'log.search.cached' : 'log.search', { n }) : t('log.search.none')}`;
     }
     case 'search_failed':
       return `“${d.query}” — ${t('log.search.failed')}`;
     case 'retrieval_failed':
       return host + t('log.failed', { reason: d.failureReason ? t(`fail.${d.failureReason}` as StringKey) : t('fail.parse_error') });
+    case 'plan_cached':
+      return t('log.planCached');
     case 'kb':
       return t('log.kb', { pub: d.publicSources ?? 0, cls: d.classroomSources ?? 0 }) + (d.webSkipped ? `. ${t('log.kb.skipped')}` : '');
     case 'domain_limit':

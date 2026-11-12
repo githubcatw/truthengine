@@ -39,6 +39,8 @@ export const C = {
   kbSources: 'kbSources',
   kbClassroom: 'kbClassroom',
   materials: 'classroomMaterials',
+  // Fast research mode: planned queries by claim, with the claim's embedding.
+  planCache: 'planCache',
 } as const;
 
 export const col = (name: string) => db().collection(name);

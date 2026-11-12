@@ -40,6 +40,8 @@ The free Render plan sleeps after about 15 minutes without traffic, so the first
 | `GEMINI_MODEL_JUDGE` | `gemini-3.1-pro-preview` | Judge model |
 | `GEMINI_MODEL_EMBED` | `gemini-embedding-001` | Knowledge-base embeddings. Output is cut to 768 dimensions; changing the model means re-indexing. |
 | `KB_STRONG_SIMILARITY` | 0.72 | Cosine similarity at which a stored source counts towards skipping the first web search |
+| `SEMANTIC_QUERY_SIMILARITY` | 0.92 | Fast mode: planned query this close to a saved one reuses its search results |
+| `SEMANTIC_PLAN_SIMILARITY` | 0.93 | Fast mode: claim this close to an earlier one reuses its planned queries |
 | `KB_MIN_SIMILARITY` | 0.62 | Passages below this are ignored |
 | `KB_PUBLIC_MAX_AGE_DAYS` | 90 | Stored public pages older than this are not used |
 | `LIMIT_MATERIALS_PER_CLASSROOM` | 50 | Teacher materials per classroom |
@@ -57,6 +59,7 @@ The free Render plan sleeps after about 15 minutes without traffic, so the first
 ## Knowledge base setup
 
 1. Deploy the indexes (`firestore:indexes` above). They include two **vector indexes** (`kbPublic`, and `kbClassroom` filtered by `classroomId`). Vector indexes build in the background and can take several minutes. Until they exist, vector queries fail, the server logs `kb.retrieve_failed`, and research falls back to the web search.
+   The same file adds vector indexes for `searchCache` and `planCache` (filtered by `language`), used by fast mode. Searches saved before this change have no embedding and are never matched semantically.
 2. Optional: index public pages the app already cached: `npm run kb:backfill -- --dry-run`, then without `--dry-run`. It reads only `pageCache` and only pages cached as stable.
 3. Optional: seed Wikipedia articles you choose: `npm run kb:seed -- titles.txt --dry-run`, then without `--dry-run`. One `lang:Title` per line (`hy`, `ru`, `en`). Pick the topics your classes cover; the full Wikipedias are too large for this index.
 4. Rough size: a page is about 10 to 75 passages. 100,000 passages take roughly 400 MB in Firestore and about 25 million embedding tokens once. Each investigation adds one embedding call per claim and one per newly fetched page. The vector query reads up to 30 documents per scope.

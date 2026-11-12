@@ -1,6 +1,7 @@
 // searchCache and pageCache hold public web data only (PART 10.7). Keys include
 // the normalized query or URL plus language. Private documents and user results
 // are never stored here.
+import { FieldValue } from 'firebase-admin/firestore';
 import { CACHE_TTL_MS } from '../config';
 import { C, col, hashId } from '../pipeline/store';
 import type { GroundingSource } from '../ai/gemini';
@@ -21,10 +22,18 @@ export async function getCachedSearch(query: string, language: string): Promise<
   return d.expiresAtMs > Date.now() ? { sources: d.sources, webSearchQueries: d.webSearchQueries } : null;
 }
 
-export async function putCachedSearch(query: string, language: string, sensitivity: TimeSensitivity, value: CachedSearch) {
+export async function putCachedSearch(query: string, language: string, sensitivity: TimeSensitivity, value: CachedSearch, embedding?: number[] | null) {
   await col(C.searchCache)
     .doc(hashId(norm(query), language))
-    .set({ query: norm(query), language, ...value, fetchedAtMs: Date.now(), expiresAtMs: Date.now() + CACHE_TTL_MS[sensitivity] });
+    .set({
+      query: norm(query),
+      language,
+      ...value,
+      fetchedAtMs: Date.now(),
+      expiresAtMs: Date.now() + CACHE_TTL_MS[sensitivity],
+      // Lets fast research mode find this search again from a differently worded query.
+      ...(embedding ? { embedding: FieldValue.vector(embedding) } : {}),
+    });
 }
 
 export async function getCachedPage(url: string): Promise<FetchedPage | null> {

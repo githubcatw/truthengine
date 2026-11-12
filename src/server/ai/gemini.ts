@@ -44,7 +44,7 @@ export interface GenerateResult {
 export interface GeminiClient {
   generate(req: GenerateRequest): Promise<GenerateResult>;
   /** Unit-length embedding per text. `document` for stored passages, `query` for claims. */
-  embed(req: { texts: string[]; task: 'document' | 'query' }): Promise<number[][]>;
+  embed(req: { texts: string[]; task: 'document' | 'query' | 'similarity' }): Promise<number[][]>;
 }
 
 function classifyError(err: unknown): AppError {
@@ -127,12 +127,12 @@ export function createGeminiClient(): GeminiClient {
     };
   }
 
-  async function embedOnce(texts: string[], task: 'document' | 'query'): Promise<number[][]> {
+  async function embedOnce(texts: string[], task: 'document' | 'query' | 'similarity'): Promise<number[][]> {
     const res = await ai.models.embedContent({
       model: MODELS.embed,
       contents: texts,
       config: {
-        taskType: task === 'query' ? 'RETRIEVAL_QUERY' : 'RETRIEVAL_DOCUMENT',
+        taskType: task === 'query' ? 'RETRIEVAL_QUERY' : task === 'similarity' ? 'SEMANTIC_SIMILARITY' : 'RETRIEVAL_DOCUMENT',
         outputDimensionality: KB.dimensions,
         abortSignal: AbortSignal.timeout(AI_LIMITS.requestTimeoutMs),
       },

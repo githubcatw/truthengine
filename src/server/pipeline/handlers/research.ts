@@ -15,6 +15,7 @@ import { wrapUntrusted } from '../../ai/untrusted';
 import { AppError } from '../../errors';
 import { DEEP_BUDGET_MULTIPLIER, MAX_OUTPUT_TOKENS, MODELS, RESEARCH, RESEARCH_BUDGETS, TEMPERATURE, type ResearchBudget } from '../../config';
 import { getCachedPage, getCachedSearch, putCachedPage, putCachedSearch } from '../../research/cache';
+import { findSimilarPlan, findSimilarSearch, putPlan, tryEmbed } from '../../research/semanticCache';
 import { fetchSource, type FetchOutcome, type FetchedPage } from '../../research/fetcher';
 import { indexPublicSource } from '../../kb/store';
 import { kbLooksStrong, retrieveForClaim, type KbSource } from '../../kb/retrieve';
@@ -60,6 +61,11 @@ interface Prepared {
 
 const stateId = (claimId: string) => `${claimId}_research_state`;
 const TRACK_AGENT: Record<ResearchTrack, FoundByAgent> = { neutral: 'researcher', supporting: 'defender', contradicting: 'prosecutor' };
+
+/** Fast mode reuses saved work from similar questions. A deeper investigation never does. */
+export function isFast(ctx: StageContext): boolean {
+  return !ctx.job.deep && (ctx.job.researchMode ?? 'detailed') === 'fast';
+}
 
 export function budgetFor(claim: ClaimDoc, deep: boolean): ResearchBudget {
   const base = RESEARCH_BUDGETS[claim.complexityClass ?? 'standard'];
@@ -190,17 +196,26 @@ async function runSearches(ctx: StageContext, queries: ResearchState['plan'], st
   const sensitivity = claim.timeSensitivity ?? 'time_sensitive';
   const allowed = queries.filter((q) => !state.executedQueries.includes(q.query)).slice(0, Math.max(0, budget.maxSearches - state.used.searches));
   const leads: Lead[] = [];
-  await pool(allowed, RESEARCH.searchConcurrency, async (q) => {
+  // One embedding call for all queries. Always stored, so later fast-mode runs can find these searches;
+  // only fast mode (and never a deeper investigation) reads from it.
+  const fast = isFast(ctx);
+  const vectors = await tryEmbed(ctx.gemini(), allowed.map((q) => q.query));
+  await pool(allowed, RESEARCH.searchConcurrency, async (q, qi) => {
     state.used.searches++;
     state.executedQueries.push(q.query);
     const agentType = TRACK_AGENT[q.track];
+    const vector = vectors?.[qi] ?? null;
     let sources;
     let cached = false;
+    let similar: { matchedQuery: string; similarity: number } | null = null;
     try {
-      const hit = await getCachedSearch(q.query, q.language);
+      const exact = await getCachedSearch(q.query, q.language);
+      const near = !exact && fast && vector ? await findSimilarSearch(vector, q.query, q.language, sensitivity) : null;
+      const hit = exact ?? near;
       if (hit) {
         sources = hit.sources;
         cached = true;
+        if (near) similar = { matchedQuery: near.matchedQuery, similarity: near.similarity };
       } else {
         const res = await ctx.gemini().generate({
           model: MODELS.fast,
@@ -213,7 +228,7 @@ async function runSearches(ctx: StageContext, queries: ResearchState['plan'], st
         ctx.counter.aiCalls++;
         sources = res.groundingSources;
         // Time-sensitive subjects get a short TTL; fast-changing ones are effectively not reused.
-        await putCachedSearch(q.query, q.language, sensitivity, { sources, webSearchQueries: res.webSearchQueries });
+        await putCachedSearch(q.query, q.language, sensitivity, { sources, webSearchQueries: res.webSearchQueries }, vector);
       }
     } catch (err) {
       if (err instanceof AppError && ['GEMINI_NOT_CONFIGURED', 'GEMINI_INVALID_KEY'].includes(err.code)) throw err;
@@ -228,7 +243,7 @@ async function runSearches(ctx: StageContext, queries: ResearchState['plan'], st
       resultSummary: sources.length
         ? `${sources.length} result(s)${cached ? ' (cached search)' : ''}: ${sources.map((s) => s.title ?? hostOf(s.uri)).join('; ')}`
         : 'No results.',
-      details: { kind: 'search', query: q.query, cached, sites: [...new Set(sources.map((s) => (s.title && /\./.test(s.title) ? s.title : hostOf(s.uri))))] },
+      details: { kind: 'search', query: q.query, cached, semantic: Boolean(similar), matchedQuery: similar?.matchedQuery ?? null, sites: [...new Set(sources.map((s) => (s.title && /\./.test(s.title) ? s.title : hostOf(s.uri))))] },
     });
   });
   // Merge into state without duplicate URLs.
@@ -572,10 +587,32 @@ export async function runResearchPlan(ctx: StageContext): Promise<StageResult> {
   const sensitivity = claim.timeSensitivity ?? 'time_sensitive';
   const classroomId = ctx.job.classroomId;
   const kbAttempted = sensitivity === 'stable' || Boolean(classroomId);
-  const kbSources = await retrieveForClaim(ctx.gemini(), { queries: [topic.topicStatement, topic.originalText], classroomId, timeSensitivity: sensitivity });
+  const fast = isFast(ctx);
+  const [kbSources, claimVector] = await Promise.all([
+    retrieveForClaim(ctx.gemini(), { queries: [topic.topicStatement, topic.originalText], classroomId, timeSensitivity: sensitivity }),
+    tryEmbed(ctx.gemini(), [topic.topicStatement]).then((v) => v?.[0] ?? null),
+  ]);
   const webSkipped = kbLooksStrong(kbSources, budget.targetIndependentSources);
   const publicFound = kbSources.filter((s) => s.scope === 'public').map((s) => `- ${s.title ?? s.host} (${s.domain})`).join('\n');
-  const plan = webSkipped ? [] : await planQueries(ctx, topic, maxQueries, publicFound || null);
+  let plan: ResearchState['plan'] = [];
+  if (!webSkipped) {
+    // Fast mode: a similar earlier claim's queries replace the planner call. Only a plan made with no
+    // knowledge-base context is stored or reused, so it never depends on what one classroom or user had stored.
+    const reused = fast && claimVector && !publicFound ? await findSimilarPlan(claimVector, topic.topicStatement, claim.language) : null;
+    if (reused) {
+      plan = reused.queries.slice(0, maxQueries);
+      await logAction(ctx, {
+        agentType: 'researcher',
+        action: 'search_query',
+        queryOrUrl: topic.topicStatement,
+        resultSummary: `Reused ${plan.length} search queries from a similar earlier question.`,
+        details: { kind: 'plan_cached', queries: plan.length, similarity: Math.round(reused.similarity * 100) },
+      });
+    } else {
+      plan = await planQueries(ctx, topic, maxQueries, publicFound || null);
+      if (claimVector && !publicFound) await putPlan(topic.topicStatement, claim.language, plan, claimVector);
+    }
+  }
   if (kbAttempted) {
     const publicCount = kbSources.filter((s) => s.scope === 'public').length;
     const classroomCount = kbSources.length - publicCount;

@@ -216,27 +216,24 @@ function toHit(scope: KbScope, id: string, d: FirebaseFirestore.DocumentData, si
   return { chunkId: id, sourceId: d.sourceId, scope: 'public', url: d.url, title: d.title ?? null, kind: d.kind, page: d.page ?? null, text: d.text, similarity, fetchedAtMs: d.fetchedAtMs };
 }
 
-export async function searchKb(queryVector: number[], scope: KbScope, limit: number = KB.candidates): Promise<KbHit[]> {
-  const base = scopedQuery(scope);
-  const hits: KbHit[] = [];
+/** Nearest documents of a (pre-filtered) query, best first. Shared by the knowledge base and the semantic caches. */
+export async function nearestDocs(base: Query, queryVector: number[], limit: number): Promise<Array<{ id: string; data: FirebaseFirestore.DocumentData; similarity: number }>> {
   if (bruteForce()) {
     const snap = await base.limit(KB.bruteForceMaxDocs).get();
+    const out: Array<{ id: string; data: FirebaseFirestore.DocumentData; similarity: number }> = [];
     for (const doc of snap.docs) {
-      const d = doc.data();
-      const v = (d.embedding as { toArray(): number[] } | undefined)?.toArray();
+      const data = doc.data();
+      const v = (data.embedding as { toArray(): number[] } | undefined)?.toArray();
       if (!v || v.length !== queryVector.length) continue;
-      const hit = toHit(scope, doc.id, d, dot(queryVector, v));
-      if (hit) hits.push(hit);
+      out.push({ id: doc.id, data, similarity: dot(queryVector, v) });
     }
-    return hits.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
+    return out.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
   }
-  const snap = await base
-    .findNearest({ vectorField: 'embedding', queryVector, limit, distanceMeasure: 'COSINE', distanceResultField: '_distance' })
-    .get();
-  for (const doc of snap.docs) {
-    const d = doc.data();
-    const hit = toHit(scope, doc.id, d, 1 - Number(d._distance));
-    if (hit) hits.push(hit);
-  }
-  return hits;
+  const snap = await base.findNearest({ vectorField: 'embedding', queryVector, limit, distanceMeasure: 'COSINE', distanceResultField: '_distance' }).get();
+  return snap.docs.map((doc) => ({ id: doc.id, data: doc.data(), similarity: 1 - Number(doc.get('_distance')) }));
+}
+
+export async function searchKb(queryVector: number[], scope: KbScope, limit: number = KB.candidates): Promise<KbHit[]> {
+  const found = await nearestDocs(scopedQuery(scope), queryVector, limit);
+  return found.map((f) => toHit(scope, f.id, f.data, f.similarity)).filter((h): h is KbHit => h !== null);
 }

@@ -54,3 +54,14 @@ describe('knowledge base helpers', () => {
     expect(cosine(q, fakeEmbedding('The orchard behind the school has apricot trees'))).toBeGreaterThan(cosine(q, fakeEmbedding('Tax rates changed in the parliament')));
   });
 });
+
+import { sameNumbers } from '../../src/server/research/semanticCache';
+
+describe('semantic cache guard', () => {
+  it('refuses to share cached work between texts that mention different numbers', () => {
+    expect(sameNumbers('The bridge was rebuilt in 1920', 'The bridge was rebuilt in 1921')).toBe(false);
+    expect(sameNumbers('rebuilt in 1920 by 12 masons', '12 masons rebuilt it in 1920')).toBe(true);
+    expect(sameNumbers('no numbers here', 'none here either')).toBe(true);
+    expect(sameNumbers('rebuilt in 1920', 'rebuilt')).toBe(false);
+  });
+});

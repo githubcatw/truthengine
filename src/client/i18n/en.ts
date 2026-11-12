@@ -205,6 +205,13 @@ export const en = {
 
   'new.title': 'New verification',
   'new.placeholder': 'Paste text or upload a document to verify',
+  'new.mode': 'Research mode',
+  'new.mode.fast': 'Fast: reuse saved searches',
+  'new.mode.detailed': 'Detailed: search afresh',
+  'new.mode.fast.hint': 'Reuses saved queries and searches from similar earlier questions. Faster, but for stable topics some results can be a few days old.',
+  'new.mode.detailed.hint': 'Plans and runs new searches for each claim. Slower.',
+  'log.search.semantic': "{n} results (similar saved search)",
+  'log.planCached': "Reused search queries from a similar earlier question",
   'new.subject': 'Subject',
   'new.subject.auto': 'Detect automatically',
   'new.language': 'Language of the text',
