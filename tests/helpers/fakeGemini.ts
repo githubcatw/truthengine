@@ -47,14 +47,33 @@ function verifiedEvidence(prompt: string): Array<{ id: string; text: string }> {
 
 const argIds = (prompt: string, prefix: 'D' | 'P') => [...new Set([...prompt.matchAll(new RegExp(`\\b(${prefix}-\\d+)\\b`, 'g'))].map((m) => m[1]!))];
 
-export function fakeGemini(scenario: Scenario = {}): GeminiClient & { calls: GenerateRequest[]; count: (needle: string) => number } {
+const EMBED_DIM = 768;
+export function fakeEmbedding(text: string): number[] {
+  const v = new Array<number>(EMBED_DIM).fill(0);
+  for (const w of text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((t) => t.length >= 3)) {
+    let h = 2166136261;
+    for (const ch of w) h = Math.imul(h ^ ch.codePointAt(0)!, 16777619) >>> 0;
+    v[h % EMBED_DIM]! += 1;
+  }
+  const n = Math.sqrt(v.reduce((a, x) => a + x * x, 0)) || 1;
+  return v.map((x) => x / n);
+}
+
+export function fakeGemini(scenario: Scenario = {}): GeminiClient & { calls: GenerateRequest[]; embedCalls: number[]; count: (needle: string) => number } {
   const calls: GenerateRequest[] = [];
+  const embedCalls: number[] = [];
   const badLockLeft = { ...(scenario.badLock ?? { agent: 'triage', times: 0 }) };
   let judgeBadLeft = scenario.judgeCitesUnverifiedOnce ? 1 : 0;
 
   const client = {
     calls,
+    embedCalls,
     count: (needle: string) => calls.filter((c) => c.systemInstruction.includes(needle)).length,
+    /** Hashed bag of words: texts sharing words get high cosine similarity. Deterministic, no network. */
+    async embed({ texts }: { texts: string[]; task: 'document' | 'query' }): Promise<number[][]> {
+      embedCalls.push(texts.length);
+      return texts.map(fakeEmbedding);
+    },
     async generate(req: GenerateRequest): Promise<GenerateResult> {
       calls.push(req);
       const sys = req.systemInstruction;

@@ -110,6 +110,8 @@ export function describeResearch(d: Record<string, any>, t: T, fallback: string 
       return `“${d.query}” — ${t('log.search.failed')}`;
     case 'retrieval_failed':
       return host + t('log.failed', { reason: d.failureReason ? t(`fail.${d.failureReason}` as StringKey) : t('fail.parse_error') });
+    case 'kb':
+      return t('log.kb', { pub: d.publicSources ?? 0, cls: d.classroomSources ?? 0 }) + (d.webSkipped ? `. ${t('log.kb.skipped')}` : '');
     case 'domain_limit':
       return host + t('log.domainLimit', { n: d.limit ?? 2 });
     case 'fetched':

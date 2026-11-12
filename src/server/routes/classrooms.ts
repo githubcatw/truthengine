@@ -2,9 +2,13 @@
 // Server-side classroom authorization on every route (PART 6.2).
 import { randomBytes } from 'node:crypto';
 import { orderedQuery } from '../firestoreQuery';
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { AssignmentCreateSchema, ClassroomCreateSchema, JoinClassroomSchema } from '../../shared/api';
 import { requireAuth, requireRole, type AuthedUser } from '../auth';
+import { getGeminiClient } from '../ai/gemini';
+import { KB, USAGE_LIMITS } from '../config';
+import { detectType, extractContent } from '../documents/extract';
+import { deleteMaterialChunks, indexMaterial } from '../kb/store';
 import { AppError } from '../errors';
 import { db } from '../firebase';
 import { handler, parse, rateLimit } from '../http';
@@ -210,5 +214,77 @@ classroomsRouter.get(
       exercisesCorrect: (profiles[i]?.get('exercisesCorrect') as number | undefined) ?? 0,
     }));
     return { misconceptions: bySubject, progress };
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Teacher materials: indexed into the knowledge base for this classroom only.
+// Only the classroom's teacher can add, list or remove them. Investigations read
+// them through the job's own classroomId (see kb/retrieve.ts), never through a
+// request parameter.
+// ---------------------------------------------------------------------------
+classroomsRouter.get(
+  '/classrooms/:id/materials',
+  handler(async (req) => {
+    const classroom = await requireTeacherOf(req.params.id!, req.user!);
+    const snap = await col(C.materials).where('classroomId', '==', classroom.classroomId).get();
+    const items = snap.docs
+      .map((d) => d.data())
+      .sort((a, b) => b.createdAtMs - a.createdAtMs)
+      .map((m) => ({ materialId: m.materialId, fileName: m.fileName, status: m.status, chunkCount: m.chunkCount, sizeBytes: m.sizeBytes, createdAtMs: m.createdAtMs }));
+    return { items, limit: KB.maxMaterialsPerClassroom };
+  }),
+);
+
+classroomsRouter.post(
+  '/classrooms/:id/materials',
+  express.raw({ type: () => true, limit: USAGE_LIMITS.maxFileBytes }),
+  handler(async (req) => {
+    const user = req.user!;
+    const classroom = await requireTeacherOf(req.params.id!, user);
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) throw new AppError('INVALID_INPUT', 'The file is empty.');
+    const fileName = decodeURIComponent(String(req.headers['x-file-name'] ?? 'material')).replace(/[^\p{L}\p{N}._ -]/gu, '_').slice(0, 120) || 'material';
+
+    const existing = await col(C.materials).where('classroomId', '==', classroom.classroomId).count().get();
+    if (existing.data().count >= KB.maxMaterialsPerClassroom) {
+      throw new AppError('USAGE_LIMIT', `A classroom can hold ${KB.maxMaterialsPerClassroom} materials. Remove one to add another.`);
+    }
+
+    const type = detectType(buf, String(req.headers['content-type'] ?? ''), fileName);
+    const extraction = await extractContent(buf, type);
+    const pages = extraction.pages.filter((p) => (p.status === 'extracted' || p.status === 'ocr') && p.text.trim()).map((p) => ({ page: type === 'pdf' ? p.pageNumber : null, text: p.text }));
+    if (!pages.length) throw new AppError('UNSUPPORTED_FILE', 'No readable text was found in this file.');
+
+    const materialId = newId();
+    const ref = col(C.materials).doc(materialId);
+    await ref.set({ materialId, classroomId: classroom.classroomId, teacherId: user.uid, fileName, status: 'indexing', chunkCount: 0, sizeBytes: buf.length, createdAtMs: Date.now() });
+    try {
+      const { chunks } = await indexMaterial(getGeminiClient(), { classroomId: classroom.classroomId, materialId, teacherId: user.uid, fileName, pages });
+      if (!chunks) throw new AppError('UNSUPPORTED_FILE', 'No readable text was found in this file.');
+      await ref.update({ status: 'ready', chunkCount: chunks });
+      await auditLog(user.uid, 'material_added', classroom.classroomId, { materialId, chunks });
+      return { materialId, fileName, status: 'ready', chunkCount: chunks, warnings: extraction.warnings };
+    } catch (err) {
+      // Never leave a half-indexed material behind.
+      await deleteMaterialChunks(classroom.classroomId, materialId);
+      await ref.delete();
+      throw err;
+    }
+  }),
+);
+
+classroomsRouter.delete(
+  '/classrooms/:id/materials/:materialId',
+  handler(async (req) => {
+    const classroom = await requireTeacherOf(req.params.id!, req.user!);
+    const ref = col(C.materials).doc(req.params.materialId!);
+    const snap = await ref.get();
+    // A material id from another classroom is reported as missing, never as forbidden.
+    if (!snap.exists || snap.get('classroomId') !== classroom.classroomId) throw new AppError('NOT_FOUND', 'Not found.');
+    await deleteMaterialChunks(classroom.classroomId, ref.id);
+    await ref.delete();
+    await auditLog(req.user!.uid, 'material_removed', classroom.classroomId, { materialId: ref.id });
+    return { ok: true };
   }),
 );

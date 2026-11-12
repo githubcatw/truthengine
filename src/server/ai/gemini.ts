@@ -1,6 +1,6 @@
 // The only module that talks to the Gemini API. Server-side only.
 import { GoogleGenAI } from '@google/genai';
-import { AI_LIMITS, readGeminiKey } from '../config';
+import { AI_LIMITS, KB, MODELS, readGeminiKey } from '../config';
 import { AppError } from '../errors';
 
 export interface GroundingSource {
@@ -43,6 +43,8 @@ export interface GenerateResult {
 /** Abstraction so tests can inject a mocked client (fixtures live only in /tests). */
 export interface GeminiClient {
   generate(req: GenerateRequest): Promise<GenerateResult>;
+  /** Unit-length embedding per text. `document` for stored passages, `query` for claims. */
+  embed(req: { texts: string[]; task: 'document' | 'query' }): Promise<number[][]>;
 }
 
 function classifyError(err: unknown): AppError {
@@ -61,6 +63,14 @@ function classifyError(err: unknown): AppError {
     return new AppError('INTERNAL', 'The AI service did not respond in time.', { timeout: true });
   }
   return new AppError('INTERNAL', 'The AI service request failed.', { status });
+}
+
+/** Reduced-dimension Gemini embeddings are not unit length; cosine ranking needs them to be. */
+export function normalize(v: number[]): number[] {
+  let n = 0;
+  for (const x of v) n += x * x;
+  n = Math.sqrt(n) || 1;
+  return v.map((x) => x / n);
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -117,7 +127,44 @@ export function createGeminiClient(): GeminiClient {
     };
   }
 
+  async function embedOnce(texts: string[], task: 'document' | 'query'): Promise<number[][]> {
+    const res = await ai.models.embedContent({
+      model: MODELS.embed,
+      contents: texts,
+      config: {
+        taskType: task === 'query' ? 'RETRIEVAL_QUERY' : 'RETRIEVAL_DOCUMENT',
+        outputDimensionality: KB.dimensions,
+        abortSignal: AbortSignal.timeout(AI_LIMITS.requestTimeoutMs),
+      },
+    });
+    const out = (res.embeddings ?? []).map((e) => normalize(e.values ?? []));
+    if (out.length !== texts.length || out.some((v) => v.length !== KB.dimensions)) {
+      throw new AppError('INTERNAL', 'The embedding service returned an unexpected result.');
+    }
+    return out;
+  }
+
   return {
+    async embed({ texts, task }) {
+      const out: number[][] = [];
+      for (let i = 0; i < texts.length; i += KB.embedBatch) {
+        const batch = texts.slice(i, i + KB.embedBatch);
+        for (let attempt = 0; ; attempt++) {
+          try {
+            out.push(...(await embedOnce(batch, task)));
+            break;
+          } catch (err) {
+            const classified = err instanceof AppError ? err : classifyError(err);
+            if (classified.code === 'GEMINI_QUOTA_EXHAUSTED' && attempt < AI_LIMITS.rateLimitRetries) {
+              await sleep(AI_LIMITS.rateLimitBaseDelayMs * 2 ** attempt);
+              continue;
+            }
+            throw classified;
+          }
+        }
+      }
+      return out;
+    },
     async generate(req) {
       for (let attempt = 0; ; attempt++) {
         try {

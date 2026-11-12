@@ -122,7 +122,7 @@ export const RetrievalFailureReasonSchema = z.enum([
 export type RetrievalFailureReason = z.infer<typeof RetrievalFailureReasonSchema>;
 
 /** Where a URL came from. The model itself is never a valid origin. */
-export const UrlOriginSchema = z.enum(['grounding_metadata', 'fetched_page', 'trusted_registry']);
+export const UrlOriginSchema = z.enum(['grounding_metadata', 'fetched_page', 'trusted_registry', 'knowledge_base', 'classroom_material']);
 export type UrlOrigin = z.infer<typeof UrlOriginSchema>;
 
 // Layer B: source quality
@@ -192,6 +192,7 @@ export const ResearchActionSchema = z.enum([
   'retrieval_failed',
   'source_rejected',
   'research_stopped',
+  'kb_lookup',
 ]);
 export type ResearchAction = z.infer<typeof ResearchActionSchema>;
 

@@ -39,6 +39,19 @@ There is no background worker. Each investigation step runs inside a normal HTTP
 - **Idempotency.** A submission's ID is a hash of the user and a key the browser generates once, so a repeated submission returns the same job. Stage outputs have predictable IDs (for example `{debateId}_{step}_{side}_{n}`), so a retried stage overwrites its own partial output instead of adding duplicates.
 - **Capped retries with backoff.** Temporary errors retry up to three times. Invalid AI output and configuration errors fail at once, with the real error shown.
 
+## Knowledge base
+
+| Choice | Why | Cost |
+|---|---|---|
+| **Firestore vector search** | Already in the stack, no new service, same Admin SDK. | Needs vector indexes (minutes to build). The emulator has no vector search, so tests use an in-process ranking with the same query filters. |
+| **Stored passages go through the normal assessor** | A similarity score is not evidence. Keeping the assessment and verbatim-excerpt check means `quote_verified` still means the same thing. | Skipping the web still costs the assessor calls. |
+| **One neutral query, not per-side queries** | An embedding of the claim finds topical text, not text that agrees or disagrees. The assessor labels each source's relation. | When the web search is skipped, the Defender and Prosecutor only argue from what the stored passages contain. They are checked by the sufficiency rule and fall back to the web otherwise. |
+| **Public passages only for `stable` claims, 90 days** | A stale page is the main way this feature could mislead. | Time-sensitive claims get no latency or cost saving. |
+| **Wikipedia counts as one source** | The three language editions are one encyclopedia. | A Wikipedia-only hit never skips the web on its own when two or more sources are needed. |
+| **Separate collections for public and classroom passages** | A query cannot mix them by mistake. | Two vector indexes. |
+| **Teacher materials are never described to the query planner** | Planned queries go to a web search. | The planner cannot avoid duplicating what a material already says. |
+| **Materials: text only, original file not kept** | Less to protect and delete. | Teachers cannot re-download a material from the app. |
+
 ## Known costs and future changes
 
 - Every event updates one counter on the job document, and parallel claims compete for it. Firestore retries those transactions. At larger scale, number events per claim.

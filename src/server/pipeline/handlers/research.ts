@@ -16,6 +16,8 @@ import { AppError } from '../../errors';
 import { DEEP_BUDGET_MULTIPLIER, MAX_OUTPUT_TOKENS, MODELS, RESEARCH, RESEARCH_BUDGETS, TEMPERATURE, type ResearchBudget } from '../../config';
 import { getCachedPage, getCachedSearch, putCachedPage, putCachedSearch } from '../../research/cache';
 import { fetchSource, type FetchOutcome, type FetchedPage } from '../../research/fetcher';
+import { indexPublicSource } from '../../kb/store';
+import { kbLooksStrong, retrieveForClaim, type KbSource } from '../../kb/retrieve';
 import { buildTerms, selectPassages, type Passage } from '../../research/passages';
 import { trustedSourceFor } from '../../research/registry';
 import { normalizeWhitespace, verifyExcerpt } from '../../validation/contract';
@@ -44,6 +46,16 @@ export interface ResearchState {
   used: { searches: number; pages: number; pdfPages: number; aiCalls: number };
   nextEvidenceNumber: number;
   stopReason: string | null;
+  /** Stored passages found before any web search. `consumed` once they have been assessed. */
+  kb?: { sources: KbSource[]; consumed: boolean; webSkipped: boolean };
+}
+
+interface Prepared {
+  ref: string;
+  lead: Lead;
+  page: FetchedPage;
+  passages: Passage[];
+  kb?: KbSource;
 }
 
 const stateId = (claimId: string) => `${claimId}_research_state`;
@@ -308,7 +320,7 @@ async function readLeads(
   });
 
   // 1. Fetch concurrently within the page budget.
-  const fetched: Array<{ lead: Lead; page: FetchedPage }> = [];
+  const fetched: Array<{ lead: Lead; page: FetchedPage; cached: boolean }> = [];
   await pool(toRead, RESEARCH.fetchConcurrency, async (lead) => {
     state.readUrls.push(lead.url);
     state.used.pages++;
@@ -338,7 +350,7 @@ async function readLeads(
       return;
     }
     domainCount.set(domain, (domainCount.get(domain) ?? 0) + 1);
-    fetched.push({ lead, page: outcome });
+    fetched.push({ lead, page: outcome, cached });
     await logAction(ctx, {
       agentType,
       action: outcome.kind === 'pdf' ? 'read_pdf' : 'fetch_page',
@@ -348,18 +360,41 @@ async function readLeads(
     });
   });
 
+  // Public pages fetched for a stable claim are added to the knowledge base while the assessment runs.
+  const indexing =
+    sensitivity === 'stable'
+      ? Promise.allSettled(
+          fetched
+            .filter((f) => !f.cached)
+            .map((f) => indexPublicSource(ctx.gemini(), { url: f.page.finalUrl, title: f.page.title, kind: 'web', pages: f.page.pages })),
+        )
+      : Promise.resolve([]);
+
   // 2. Preselect passages deterministically and assess in batches.
   const terms = buildTerms([topic.topicStatement, topic.originalText, ...state.executedQueries]);
-  const prepared = fetched.map(({ lead, page }, i) => {
+  const prepared: Prepared[] = fetched.map(({ lead, page }, i) => {
     const ref = `S${i + 1}`;
     const pdfLeft = Math.max(1, budget.maxPdfPages - state.used.pdfPages);
     const { passages, pagesRead } = selectPassages(ref, page.pages, terms, page.kind === 'pdf' ? Math.min(pdfLeft, 10) : 1);
     if (page.kind === 'pdf') state.used.pdfPages += pagesRead;
     return { ref, lead, page, passages };
   });
+  // Stored passages need no fetch. They go through the same assessment and excerpt check as fetched pages.
+  if (state.kb && !state.kb.consumed) {
+    state.kb.consumed = true;
+    for (const src of state.kb.sources) {
+      if ((domainCount.get(src.domain) ?? 0) >= RESEARCH.maxEvidencePerDomain) continue;
+      domainCount.set(src.domain, (domainCount.get(src.domain) ?? 0) + 1);
+      const ref = `S${prepared.length + 1}`;
+      const lead: Lead = { url: src.url, title: src.title, snippets: [], track: 'neutral', query: '', language: claim.language };
+      const passages = src.passages.map((p, j) => ({ id: `${ref}-P${j + 1}`, page: p.page, text: p.text }));
+      const page: FetchedPage = { ok: true, requestedUrl: src.url, finalUrl: src.url, title: src.title, kind: 'text', pages: passages.map((p) => ({ page: p.page, text: p.text })) };
+      prepared.push({ ref, lead, page, passages, kb: src });
+    }
+  }
   const registry = new Map<string, Awaited<ReturnType<typeof trustedSourceFor>>>();
-  for (const p of prepared) registry.set(p.ref, await trustedSourceFor(hostOf(p.page.finalUrl)));
-  const batches: (typeof prepared)[] = [];
+  for (const p of prepared) registry.set(p.ref, p.kb ? (p.kb.host ? await trustedSourceFor(p.kb.host) : null) : await trustedSourceFor(hostOf(p.page.finalUrl)));
+  const batches: Prepared[][] = [];
   for (let i = 0; i < prepared.length; i += RESEARCH.sourcesPerAssessmentCall) batches.push(prepared.slice(i, i + RESEARCH.sourcesPerAssessmentCall));
 
   const assessments = await Promise.all(
@@ -374,6 +409,13 @@ async function readLeads(
             `url: ${b.page.finalUrl}`,
             `page title: ${b.page.title ?? b.lead.title ?? 'unknown'}`,
             `content type: ${b.page.kind}`,
+            ...(b.kb
+              ? [
+                  b.kb.scope === 'classroom'
+                    ? 'origin: material uploaded by the classroom teacher, not a public web page; judge it as a teaching document'
+                    : `origin: stored copy of a public page, fetched ${new Date(b.kb.fetchedAtMs).toISOString().slice(0, 10)}; the page may have changed since`,
+                ]
+              : []),
             ...(registry.get(b.ref) ? [`listed in the trusted-sources registry as "${registry.get(b.ref)!.name}" (${registry.get(b.ref)!.verificationStatus}); this is a preference signal only and never proves the claim`] : []),
             'PASSAGES:',
             ...b.passages.map((p) => `[${p.id}${p.page ? `, page ${p.page}` : ''}]\n${wrapUntrusted('web_page', p.text, p.id)}`),
@@ -407,9 +449,18 @@ async function readLeads(
     for (const b of batches[bi]!) {
       const a = out?.sources.find((s) => s.sourceRef === b.ref);
       const agentType = TRACK_AGENT[b.lead.track];
-      const domain = hostOf(b.page.finalUrl);
-      const trustedSource = await trustedSourceFor(domain);
-      const base = { ...baseRecord(b.lead), sourceUrl: b.page.finalUrl, urlOrigin: 'fetched_page' as const, domain, sourceTitle: b.page.title ?? b.lead.title, trustedSource };
+      const domain = b.kb ? b.kb.domain : hostOf(b.page.finalUrl);
+      const trustedSource = b.kb ? (b.kb.host ? await trustedSourceFor(b.kb.host) : null) : await trustedSourceFor(domain);
+      const base = {
+        ...baseRecord(b.lead),
+        sourceUrl: b.page.finalUrl,
+        urlOrigin: (b.kb ? (b.kb.scope === 'classroom' ? 'classroom_material' : 'knowledge_base') : 'fetched_page') as EvidenceRecord['urlOrigin'],
+        // Stored passages show when the text was actually fetched or uploaded, not today's date.
+        ...(b.kb ? { retrievalDate: new Date(b.kb.fetchedAtMs).toISOString() } : {}),
+        domain,
+        sourceTitle: b.page.title ?? b.lead.title,
+        trustedSource,
+      };
       if (!a) {
         // Not assessed (AI-call budget exhausted): keep as retrieved content without a verified excerpt.
         records.push({ ...base, evidenceId: '', provenanceStatus: 'fetched' });
@@ -468,6 +519,7 @@ async function readLeads(
   for (const l of leftover) records.push({ ...baseRecord(l), evidenceId: '', provenanceStatus: 'search_metadata_only' });
 
   for (const r of records) r.evidenceId = nextId();
+  await indexing;
   return { records };
 }
 
@@ -514,7 +566,27 @@ export async function runResearchPlan(ctx: StageContext): Promise<StageResult> {
   const budget = budgetFor(claim, ctx.job.deep);
   // First round: 3 to 6 queries (PART 9.1), within the search budget.
   const maxQueries = Math.max(3, Math.min(6, Math.floor(budget.maxSearches / 2)));
-  const plan = await planQueries(ctx, topic, maxQueries, null);
+
+  // Look in the knowledge base first. Teacher materials are searched only with the classroom of this
+  // job; they are never described to the query planner, because planned queries go to a web search.
+  const sensitivity = claim.timeSensitivity ?? 'time_sensitive';
+  const classroomId = ctx.job.classroomId;
+  const kbAttempted = sensitivity === 'stable' || Boolean(classroomId);
+  const kbSources = await retrieveForClaim(ctx.gemini(), { queries: [topic.topicStatement, topic.originalText], classroomId, timeSensitivity: sensitivity });
+  const webSkipped = kbLooksStrong(kbSources, budget.targetIndependentSources);
+  const publicFound = kbSources.filter((s) => s.scope === 'public').map((s) => `- ${s.title ?? s.host} (${s.domain})`).join('\n');
+  const plan = webSkipped ? [] : await planQueries(ctx, topic, maxQueries, publicFound || null);
+  if (kbAttempted) {
+    const publicCount = kbSources.filter((s) => s.scope === 'public').length;
+    const classroomCount = kbSources.length - publicCount;
+    await logAction(ctx, {
+      agentType: 'researcher',
+      action: 'kb_lookup',
+      queryOrUrl: topic.topicStatement,
+      resultSummary: `Knowledge base: ${publicCount} stored public source(s), ${classroomCount} classroom material(s)${webSkipped ? '; first web search skipped' : ''}.`,
+      details: { kind: 'kb', publicSources: publicCount, classroomSources: classroomCount, webSkipped },
+    });
+  }
   const state: ResearchState = {
     plan,
     executedQueries: [],
@@ -523,6 +595,7 @@ export async function runResearchPlan(ctx: StageContext): Promise<StageResult> {
     used: { searches: 0, pages: 0, pdfPages: 0, aiCalls: ctx.counter.aiCalls },
     nextEvidenceNumber: 1,
     stopReason: null,
+    kb: { sources: kbSources, consumed: false, webSkipped },
   };
   return { outputRef: `agentAnalyses/${stateId(claim.claimId)}`, apply: (tx) => writeState(tx, ctx, state) };
 }
@@ -578,10 +651,11 @@ export async function runResearchRefine(ctx: StageContext): Promise<StageResult>
     state.stopReason = 'budget_exhausted';
   } else {
     const found = existing
-      .filter((e) => e.provenanceStatus === 'quote_verified')
+      .filter((e) => e.provenanceStatus === 'quote_verified' && e.urlOrigin !== 'classroom_material')
       .map((e) => `- ${e.sourceTitle ?? e.domain} (${e.domain})`)
       .join('\n');
-    const more = await planQueries(ctx, topic, Math.min(4, searchesLeft), found || '- none verified yet');
+    // When the first web round was skipped in favour of the knowledge base, this is the only web round.
+    const more = await planQueries(ctx, topic, Math.min(state.kb?.webSkipped ? 6 : 4, searchesLeft), found || '- none verified yet');
     const before = state.leads.length;
     await runSearches(ctx, more, state, budget);
     if (state.leads.length === before) {

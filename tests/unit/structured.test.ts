@@ -42,7 +42,7 @@ describe('structured output with one repair retry', () => {
   it('sends the JSON Schema with pinned topic-lock values, and gives the repair more room after truncation', async () => {
     const calls: any[] = [];
     const client = {
-      async generate(req: any) {
+      async embed(): Promise<number[][]> { return []; }, async generate(req: any) {
         calls.push(req);
         return calls.length === 1
           ? { text: '{"answer":"cut', groundingSources: [], webSearchQueries: [], finishReason: 'MAX_TOKENS' }
@@ -60,7 +60,7 @@ describe('structured output with one repair retry', () => {
     const { AppError } = await import('../../src/server/errors');
     const calls: any[] = [];
     const client = {
-      async generate(req: any) {
+      async embed(): Promise<number[][]> { return []; }, async generate(req: any) {
         calls.push(req);
         if (req.jsonSchema) throw new AppError('INTERNAL', 'The AI service request failed.', { status: 400 });
         return { text: '{"answer":"ok","evidenceIds":[]}', groundingSources: [], webSearchQueries: [] };
@@ -81,7 +81,7 @@ describe('structured output with one repair retry', () => {
 
   it('never sends item counts as schema keywords (they inflate the decoding grammar)', async () => {
     const calls: any[] = [];
-    const client = { async generate(req: any) { calls.push(req); return { text: '{"answer":"ok","evidenceIds":[]}', groundingSources: [], webSearchQueries: [] }; } };
+    const client = { async embed(): Promise<number[][]> { return []; }, async generate(req: any) { calls.push(req); return { text: '{"answer":"ok","evidenceIds":[]}', groundingSources: [], webSearchQueries: [] }; } };
     await callStructured({ ...base, client });
     expect(JSON.stringify(calls[0].jsonSchema)).not.toMatch(/"maxItems"|"minItems"|"maxLength"|"pattern"/);
   });

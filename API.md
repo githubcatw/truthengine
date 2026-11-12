@@ -32,6 +32,9 @@ The only verdict values are `"CORRECT"` and `"WRONG"`, or `null` when no verdict
 | `GET /api/classrooms/:id` | Classroom, assignments, and members (members for the teacher only) |
 | `POST /api/classrooms/:id/assignments` | Create an assignment (teacher) |
 | `DELETE /api/classrooms/:id/members/:uid` | Remove a member (teacher) |
+| `GET /api/classrooms/:id/materials` | List the classroom's materials (its teacher only) |
+| `POST /api/classrooms/:id/materials` | Raw file body with `X-File-Name`; extracts, embeds and indexes it for this classroom (its teacher only) |
+| `DELETE /api/classrooms/:id/materials/:materialId` | Remove a material and its passages (its teacher only) |
 | `GET /api/classrooms/:id/submissions` · `/insights` | Submissions to this classroom, misconceptions and progress (teacher) |
 | `GET /api/assignments/:id` | Assignment, plus the student's own submissions to it |
 | `GET /api/sources` · `POST/PUT/DELETE /api/sources/:id` | Trusted-sources registry; changes are admin only |

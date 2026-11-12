@@ -35,9 +35,13 @@ export function EvidenceDetails({ e }: { e: EvidenceRecord }) {
       <p className="text-muted">
         {[e.sourceOrganization, e.domain, e.sourceType, e.publicationDate].filter(Boolean).join(' · ')}
       </p>
-      <a href={e.sourceUrl} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex max-w-full items-center gap-1 break-all text-navy">
-        {e.sourceUrl} <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
-      </a>
+      {e.urlOrigin === 'classroom_material' ? (
+        <p className="text-navy">{e.sourceTitle ?? e.domain}</p>
+      ) : (
+        <a href={e.sourceUrl} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex max-w-full items-center gap-1 break-all text-navy">
+          {e.sourceUrl} <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+        </a>
+      )}
       <p className="text-xs text-muted">
         {t('ev.retrieved', { date: formatDate(Date.parse(e.retrievalDate)) })} · {t(`origin.${e.urlOrigin}`)} · {t('ev.foundBy', { agent: t(`agent.${e.foundByAgent}`) })}
         {e.excerptLocation && ` · ${t('ev.location', { loc: e.excerptLocation })}`}

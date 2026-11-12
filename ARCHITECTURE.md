@@ -81,6 +81,22 @@ Editing a topic after confirmation, retrying, or running a deeper investigation 
 - **Final results are never reused as a shortcut.** During confirmation, a matching past result from the **same user** appears as "You verified a matching claim on {date}", with a link to it. Time-sensitive matches are marked as history only. Confirming always runs a fresh investigation.
 - Private documents and results are never written to the shared caches.
 
+## Knowledge base (vector search before web search)
+
+Before the first web search for a claim, `research_plan` searches stored passages. The code is in `src/server/kb/`.
+
+- **What is stored.** Passages (about 800 characters) with a 768-dimension Gemini embedding (`GEMINI_MODEL_EMBED`, default `gemini-embedding-001`). Two collections, never mixed in one query:
+  - `kbPublic`: pages fetched for `stable` claims, plus any Wikipedia articles seeded with `npm run kb:seed`. `kbSources` records one row per page for de-duplication.
+  - `kbClassroom`: teacher materials, each passage tagged with its `classroomId`.
+- **Student uploads are never indexed.** Only public pages and teacher materials are.
+- **Classroom isolation.** The `classroomId` for a search comes from the job record (set from the assignment, with membership checked at submission). It is never read from a request or from model output. The query filters on it, the results are checked against it again, and a search without a classroom id is refused. Only the classroom's teacher can add, list or delete materials. Material text and titles are never put in the query planner's prompt, so they cannot reach a web search.
+- **How hits are used.** Stored passages go through the same source assessment and verbatim-excerpt check as fetched pages, so `quote_verified` still means the quote is in the stored text. Evidence is marked `knowledge_base` or `classroom_material` and shows when the text was fetched or uploaded, not today's date.
+- **Skipping the web.** If enough independent sources match strongly (`KB_STRONG_SIMILARITY`, at least the budget's target number of distinct domains), the planner and the first round of searches are skipped. If the assessed evidence is still not sufficient, the refine stage searches the web with up to 6 queries. Similarity only chooses what to assess. It never decides whether a claim is supported.
+- **Independence.** The hy, ru and en Wikipedias count as one source (`wikipedia.org`), and all teacher materials in a classroom count as one source, so neither alone satisfies a target of two or more.
+- **Freshness.** Public passages are used only for `stable` claims and only if fetched within `KB_PUBLIC_MAX_AGE_DAYS` (90). Time-sensitive claims never use them. Teacher materials are used for every claim.
+- **Failure mode.** If embedding, the vector index or the query fails, research continues exactly as before with the web search.
+- **Write-back.** Pages fetched for a stable claim are indexed while the assessment runs. Indexing errors are logged and ignored.
+
 ## Security model
 
 - The Admin SDK bypasses Firestore rules, so every route verifies the ID token (`requireAuth`) and checks ownership or classroom-teacher access (`access.ts`). Missing records and records owned by someone else both return `NOT_FOUND`.

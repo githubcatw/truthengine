@@ -16,7 +16,7 @@ export function tokenize(s: string): string[] {
     .filter((t) => t.length >= 3);
 }
 
-function splitIntoWindows(text: string, size: number): string[] {
+export function splitIntoWindows(text: string, size: number): string[] {
   const sentences = text.replace(/\s+/g, ' ').split(/(?<=[.!?։:;])\s+/u);
   const out: string[] = [];
   let cur = '';

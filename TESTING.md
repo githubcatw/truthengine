@@ -23,9 +23,10 @@ The integration tests need Java for the Firestore emulator. Gemini is replaced b
 | Security | Cross-user 404s; no self-assigned roles; admin bootstrap needs a verified email; teacher access limited to their classroom; Firestore rules; usage limits; Storage disabled shows a message |
 | Documents | Text PDF, scanned PDF (OCR), DOCX, TXT, image, encrypted, corrupted, unsupported and mismatched files, and unreadable pages |
 | Audit wording | Fixed labels; no "fake", "invented" or AI-authorship claims; every passage verbatim; each check performed is recorded |
+| Knowledge base | `unit/kb`, `integration/kb`: stored pages answer a repeated stable claim with no web search or fetch; time-sensitive claims and pages older than 90 days are not used; an embedding failure falls back to the web; a classroom's materials reach only that classroom's investigations (checked in evidence, research state, log and debate text), never a web search or the public index; the vector query itself is scoped by classroom; only the classroom's teacher can upload, list or delete; a failed upload leaves nothing behind |
 | Animation | Events are ordered and unique; each `debate_message` event matches its stored message; refresh in the browser shows the same result; sprites stay on the grid with 2 to 4 frames per state |
 | End to end | `integration/ui.e2e`: in a real browser, register, submit text, confirm, run the investigation, see the result, refresh and see it again; `integration/pipeline` covers the same flow through the API |
 
 ## What the tests cannot cover
 
-The real Gemini API, real Google Search grounding, and real websites are not exercised, because this environment has no Gemini key or Firebase project. Run a supervised verification with real keys before releasing.
+The real Gemini API (including the embedding model), real Google Search grounding, Firestore's native vector search and real websites are not exercised. The emulator has no vector search, so knowledge-base tests rank in process with the same collection and `classroomId` filters and a scripted bag-of-words embedding. The vector indexes and similarity thresholds are untested against real data, because this environment has no Gemini key or Firebase project. Run a supervised verification with real keys before releasing.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useI18n } from '../i18n';
@@ -11,6 +11,12 @@ interface Detail {
   isTeacher: boolean;
   assignments: Array<{ assignmentId: string; title: string; instructions: string; dueAtMs: number | null }>;
   members: Array<{ userId: string; displayName: string | null; joinedAtMs: number }> | null;
+}
+interface Material {
+  materialId: string;
+  fileName: string;
+  status: string;
+  chunkCount: number;
 }
 interface Submission {
   jobId: string;
@@ -36,15 +42,23 @@ export default function ClassroomDetail() {
   const [instructions, setInstructions] = useState('');
   const [due, setDue] = useState('');
   const [busy, setBusy] = useState(false);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     try {
       const detail = await api<Detail>('GET', `/classrooms/${classroomId}`);
       setD(detail);
       if (detail.isTeacher) {
-        const [s, i] = await Promise.all([api<{ items: Submission[] }>('GET', `/classrooms/${classroomId}/submissions`), api<Insights>('GET', `/classrooms/${classroomId}/insights`)]);
+        const [s, i, m] = await Promise.all([
+          api<{ items: Submission[] }>('GET', `/classrooms/${classroomId}/submissions`),
+          api<Insights>('GET', `/classrooms/${classroomId}/insights`),
+          api<{ items: Material[] }>('GET', `/classrooms/${classroomId}/materials`),
+        ]);
         setSubs(s.items);
         setInsights(i);
+        setMaterials(m.items);
       }
     } catch (e) {
       setError((e as Error).message);
@@ -112,6 +126,63 @@ export default function ClassroomDetail() {
           </form>
         )}
       </Section>
+
+      {d.isTeacher && (
+        <Section title={t('class.materials')}>
+          <p className="mb-3 text-sm text-muted">{t('class.materials.text')}</p>
+          {materials.length === 0 ? (
+            <p className="text-sm text-muted">{t('class.materials.empty')}</p>
+          ) : (
+            <ul className="divide-y divide-rule text-sm">
+              {materials.map((m) => (
+                <li key={m.materialId} className="flex justify-between gap-3 py-2">
+                  <span className="break-all">
+                    {m.fileName} <span className="text-muted">· {t('class.materials.chunks', { n: m.chunkCount })}</span>
+                  </span>
+                  <button
+                    className="text-wrong"
+                    onClick={async () => {
+                      await api('DELETE', `/classrooms/${classroomId}/materials/${m.materialId}`).catch((e) => setError(e.message));
+                      void load();
+                    }}
+                  >
+                    {t('class.materials.remove')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <input
+            ref={fileInput}
+            type="file"
+            hidden
+            accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              setError(null);
+              setUploading(true);
+              try {
+                await api('POST', `/classrooms/${classroomId}/materials`, undefined, {
+                  raw: await f.arrayBuffer(),
+                  headers: { 'Content-Type': f.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(f.name) },
+                });
+                await load();
+              } catch (err) {
+                setError((err as Error).message);
+              } finally {
+                setUploading(false);
+                if (fileInput.current) fileInput.current.value = '';
+              }
+            }}
+          />
+          <div className="mt-3">
+            <Button busy={uploading} onClick={() => fileInput.current?.click()}>
+              {t('class.materials.add')}
+            </Button>
+          </div>
+        </Section>
+      )}
 
       {d.isTeacher && d.members && (
         <Section title={t('class.members')}>

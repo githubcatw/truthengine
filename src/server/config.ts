@@ -14,6 +14,8 @@ export const MODELS = {
   // published yet; 3.1 Pro is the newest Pro and is still a preview, so it can
   // change or be retired. Override with GEMINI_MODEL_JUDGE when a stable one ships.
   judge: process.env.GEMINI_MODEL_JUDGE || 'gemini-3.1-pro-preview',
+  // Multilingual embedding model for the knowledge base (Armenian, Russian, English).
+  embed: process.env.GEMINI_MODEL_EMBED || 'gemini-embedding-001',
 } as const;
 
 /** Low randomness for extraction, research and the Judge (PART 0.5 rule 8). */
@@ -82,6 +84,37 @@ export const CACHE_TTL_MS: Record<TimeSensitivity, number> = {
   stable: 7 * 24 * 3600_000,
   time_sensitive: 3 * 3600_000,
 };
+
+/**
+ * Knowledge base (vector search in front of web search). Similarity only decides
+ * which stored passages are worth showing to the source assessor; it never decides
+ * whether a claim is supported.
+ */
+export const KB = {
+  /** Firestore vectors support up to 2048 dimensions. Must match firestore.indexes.json. */
+  dimensions: 768,
+  /** Texts per embedding request. */
+  embedBatch: 64,
+  chunkChars: 800,
+  /** A source is indexed only up to this many characters (about 75 chunks). */
+  maxIndexedCharsPerSource: 60_000,
+  /** Candidates fetched from each vector query before filtering. */
+  candidates: 30,
+  /** Cosine similarity floor for a passage to be considered at all. */
+  minSimilarity: num('KB_MIN_SIMILARITY', 0.62),
+  /** A source whose best passage reaches this counts towards "the KB probably covers it". */
+  strongSimilarity: num('KB_STRONG_SIMILARITY', 0.72),
+  /** Public pages older than this are not used (stable claims only; time-sensitive claims never use public pages). */
+  publicMaxAgeMs: num('KB_PUBLIC_MAX_AGE_DAYS', 90) * 24 * 3600_000,
+  /** Passages passed to the assessor per source. */
+  passagesPerSource: 4,
+  maxSourcesPerTrack: 6,
+  /** Per classroom. */
+  maxMaterialsPerClassroom: num('LIMIT_MATERIALS_PER_CLASSROOM', 50),
+  maxChunksPerMaterial: 400,
+  /** Brute-force fallback (emulator / tests only) reads at most this many documents. */
+  bruteForceMaxDocs: 5000,
+} as const;
 
 export const PIPELINE = {
   claimConcurrency: num('CLAIM_CONCURRENCY', 3),

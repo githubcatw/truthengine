@@ -7,6 +7,9 @@ export function mockGemini(responses: string[]): GeminiClient & { calls: Generat
   const calls: GenerateRequest[] = [];
   return {
     calls,
+    async embed(): Promise<number[][]> {
+      throw new Error('mockGemini: embed is not scripted');
+    },
     async generate(req): Promise<GenerateResult> {
       calls.push(req);
       const text = responses[calls.length - 1];

@@ -33,6 +33,12 @@ export const C = {
   trustedSources: 'trustedSources',
   notifications: 'notifications',
   receipts: 'verificationReceipts',
+  // Knowledge base. Public and classroom passages live in separate collections so
+  // a query can never mix them; classroom passages are always filtered by classroomId.
+  kbPublic: 'kbPublic',
+  kbSources: 'kbSources',
+  kbClassroom: 'kbClassroom',
+  materials: 'classroomMaterials',
 } as const;
 
 export const col = (name: string) => db().collection(name);

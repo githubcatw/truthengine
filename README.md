@@ -52,6 +52,8 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for the full setup, including the rules and i
 
 ## Known limitations
 
+- **Knowledge base is unmeasured.** Retrieval thresholds (`KB_MIN_SIMILARITY`, `KB_STRONG_SIMILARITY`) are starting values. Vector search and the real embedding model were not run in the sandbox: the Firestore emulator has no vector search, so tests rank in process with the same filters and a scripted embedding. Run a few real claims and look at the **Knowledge base** line in the research log before relying on it. Armenian, Russian and English interface strings for materials were written without native review.
+
 - **No durable background worker.** The investigation advances only while the Live Investigation page is open. If the page is closed, the job shows as `paused` and resumes when reopened. See [ARCHITECTURE.md](ARCHITECTURE.md).
 - **No end-to-end run with the real Gemini API yet.** Everything was built and tested in a sandbox without a Gemini key or a Firebase project. Gemini is replaced by a scripted test double that lives only in `tests/`, and the Firebase emulators stand in for Firestore, Auth and Storage. The first run with real keys should be watched closely: grounding results, prompt behaviour and model output lengths are not yet verified against the live API.
 - **The Judge model is a preview.** The defaults are `gemini-3.8-flash` (stable) and `gemini-3.1-pro-preview` for the Judge. No stable Pro text model was published at the time of writing. Override with `GEMINI_MODEL_FAST` and `GEMINI_MODEL_JUDGE`.
