@@ -204,4 +204,48 @@ describe('end-to-end: submit text → confirm → research → debate → judge 
     const h = await api('GET', '/verifications');
     expect(h.body.items).toEqual([]);
   });
+
+  it('a time-sensitive claim is never reused: it gets a short cache lifetime and a fresh investigation', async () => {
+    useGemini(fakeGemini({ timeSensitivity: 'time_sensitive' }));
+    const first = await submitAndConfirm();
+    const done1 = await drive(api, first.jobId);
+    const firstClaim = done1.job.claimSummaries[0].claimId;
+
+    // Search cache for a time-sensitive claim lives for hours, not days.
+    const { db } = await import('../../src/server/firebase');
+    const cached = (await db().collection('searchCache').get()).docs.map((d) => d.data());
+    expect(cached.length).toBeGreaterThan(0);
+    for (const c of cached) expect(c.expiresAtMs - c.fetchedAtMs).toBeLessThanOrEqual(3 * 3600_000);
+
+    // The second run shows the past result as history only, then investigates afresh.
+    const second = await submitAndConfirm();
+    const awaiting = (await api('GET', `/verifications/${second.jobId}`)).body;
+    expect(awaiting.previousResults[0]).toMatchObject({ resultClaimId: firstClaim, timeSensitivity: 'time_sensitive' });
+    const done2 = await drive(api, second.jobId);
+    const secondClaim = done2.job.claimSummaries[0].claimId;
+    expect(secondClaim).not.toBe(firstClaim);
+    expect(done2.stages.some((st: any) => st.stageKey.startsWith('research_read:') && st.status === 'completed')).toBe(true);
+    const report = (await api('GET', `/claims/${secondClaim}`)).body;
+    expect(report.result.claimId).toBe(secondClaim);
+    expect(report.decision.decisionId).toBe(`${secondClaim}_judge`);
+  });
+
+  it('claims in one job never see each other\'s evidence, debate or verdict', async () => {
+    useGemini(fakeGemini());
+    const { jobId } = await submitAndConfirm('The eastern gate was rebuilt in brick after the flood. The western tower received a new bronze bell in the spring.');
+    const done = await drive(api, jobId);
+    expect(done.job.status).toBe('completed');
+    const [a, b] = done.job.claimSummaries.map((c: any) => c.claimId);
+    const ra = (await api('GET', `/claims/${a}`)).body;
+    const rb = (await api('GET', `/claims/${b}`)).body;
+    for (const [r, id] of [[ra, a], [rb, b]] as const) {
+      expect(r.evidence.every((e: any) => e.claimId === id)).toBe(true);
+      expect(r.messages.every((m: any) => m.claimId === id)).toBe(true);
+      expect(r.decision.claimId).toBe(id);
+      for (const eid of r.decision.decisiveEvidenceIds) expect(r.evidence.some((e: any) => e.evidenceId === eid)).toBe(true);
+    }
+    expect(ra.debate.topic.topicHash).not.toBe(rb.debate.topic.topicHash);
+    const logA = (await api('GET', `/claims/${a}/research-log`)).body.items;
+    expect(logA.every((l: any) => l.claimId === a)).toBe(true);
+  });
 });

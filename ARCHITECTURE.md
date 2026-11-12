@@ -72,8 +72,24 @@ Editing a topic after confirmation, retrying, or running a deeper investigation 
 
 - Each real action writes an `events/{seq}` record: a stage start, finish or failure, a research log entry, a saved evidence record, a debate message, the judge decision, a quality finding, an extraction page or the lesson. Sequence numbers are reserved on the job document inside the same transaction that writes the source record.
 - Each event stores a `ref` to the record it represents, and a `summary` copied from that record.
-- The browser loads past events through the paginated API, then subscribes to newer events with `onSnapshot`. Teachers, who have read-only access, poll the API instead. Playback has a minimum display time, speeds up automatically when far behind, and can be paused, sped up, skipped, replayed or scrubbed on a timeline.
+- The browser loads past events through the paginated API, then subscribes to newer events with `onSnapshot`. Teachers, who have read-only access, poll the API instead.
+- **Virtual courtroom.** The page shows one card per claim plus an Overview card for document-level work. Each card shows the claim's current step, real progress and verdict. Selecting a card plays only that claim's events (or the job-level events for Overview), so parallel claims never overwrite each other on screen. Each courtroom keeps its own playback position.
+- Playback has a minimum display time and catches up automatically when behind. While a job is live there is no speed control; replays can be sped up, skipped, scrubbed on a timeline or restarted. Consecutive research steps of one stage are grouped in the text transcript.
+- Event text is built in the browser from stored facts (for example a research step's site and failure reason), so it follows the interface language. Labels use the language's separator (`՝` in Armenian).
+- Agents whose stage is running keep a "working" animation (the Researcher's magnifying glass, the Claim Extractor's highlighter) even between events.
 - The backend never waits on the animation.
+
+## Answer format and the Gemini schema
+
+Each agent call sends its Zod schema to Gemini as `responseJsonSchema` (`ai/jsonSchema.ts`). The topic-lock IDs are pinned as single-value enums. Length limits, patterns and item counts are written into field descriptions rather than sent as keywords, because Gemini compiles the schema into a decoding grammar with a size limit. If the API still refuses a schema with HTTP 400, that call is retried with the schema written into the prompt, and the schema is not sent again until the server restarts (`ai/structured.ts`). Zod validation in code stays the authority either way.
+
+## Firestore indexes
+
+Queries that filter on one field and sort on another need the composite indexes in `firestore.indexes.json`. Until they exist, `firestoreQuery.ts` runs the equality-only query and sorts in memory (bounded at 1,000 rows), and logs one `Firestore index missing` warning with Firestore's `createIndexLink` for each such query. The emulator never enforces indexes, so `unit/firestore-query.test.ts` simulates the production error.
+
+## Measured timings
+
+Every stage run stores `durationMs` and `aiCalls`. When a job finishes, the server logs one `job finished` line with the wall time, the active processing time (pauses excluded), AI calls, claim complexity and the average and maximum duration per stage type. It contains no user content. The admin Performance view shows the same data from Firestore.
 
 ## Caching (PART 10.7)
 
