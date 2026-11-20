@@ -37,6 +37,8 @@ export const ExtractedClaimSchema = z.object({
   importance: z.number().int().min(1).max(5),
   /** If this atomic claim was split from a compound sentence, the compound's text. */
   splitFrom: str(800).nullable(),
+  /** True when the claim is about what a named person or organisation said, wrote, announced or decided. Defaults to false. */
+  attributedStatement: z.boolean().default(false),
 });
 export const ClaimExtractionOutputSchema = z.object({
   detectedLanguage: z.enum(['hy', 'en', 'ru', 'other']),

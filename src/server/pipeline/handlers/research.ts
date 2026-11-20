@@ -21,6 +21,8 @@ import { indexPublicSource } from '../../kb/store';
 import { kbLooksStrong, retrieveForClaim, type KbSource } from '../../kb/retrieve';
 import { buildTerms, selectPassages, type Passage } from '../../research/passages';
 import { trustedSourceFor } from '../../research/registry';
+import { policiesFor } from '../../research/credibility/store';
+import { effectiveTier, isEvidenceGrade, type SourcePolicy } from '../../../shared/credibility';
 import { normalizeWhitespace, verifyExcerpt } from '../../validation/contract';
 import { C, col, type EventInput } from '../store';
 import { loadTopic } from '../topic';
@@ -263,10 +265,19 @@ interface ReadOutput {
   records: EvidenceRecord[];
 }
 
-/** Interleaves tracks so the pool stays balanced between neutral, supporting and contradicting leads. */
-function chooseLeads(leads: Lead[], n: number): Lead[] {
+/** Reading order by what the credibility database says about the site: sources that can be evidence first, context-only sites last. */
+export function leadRank(policy: SourcePolicy | null | undefined, attributionClaim: boolean): number {
+  if (!isEvidenceGrade(policy, attributionClaim)) return 2;
+  return policy?.tier === 'high' ? 0 : 1;
+}
+
+/**
+ * Interleaves tracks so the pool stays balanced between neutral, supporting and contradicting leads.
+ * Within a track, better-ranked sites are read first, so a small page budget is not spent on social posts.
+ */
+function chooseLeads(leads: Lead[], n: number, rank: (lead: Lead) => number = () => 0): Lead[] {
   const byTrack: Record<ResearchTrack, Lead[]> = { neutral: [], supporting: [], contradicting: [] };
-  for (const l of leads) byTrack[l.track].push(l);
+  for (const l of [...leads].sort((a, b) => rank(a) - rank(b))) byTrack[l.track].push(l);
   const out: Lead[] = [];
   const order: ResearchTrack[] = ['neutral', 'supporting', 'contradicting'];
   while (out.length < n && order.some((t) => byTrack[t].length)) {
@@ -300,7 +311,9 @@ async function readLeads(
   const sensitivity = claim.timeSensitivity ?? 'time_sensitive';
   const unread = state.leads.filter((l) => !state.readUrls.includes(l.url));
   const pagesLeft = Math.max(0, budget.maxPagesFetched - state.used.pages);
-  const toRead = chooseLeads(unread, pagesLeft);
+  const attributionClaim = claim.attributionClaim ?? false;
+  const leadPolicies = await policiesFor(unread.map((l) => hostOf(l.url)));
+  const toRead = chooseLeads(unread, pagesLeft, (l) => leadRank(leadPolicies.get(hostOf(l.url)), attributionClaim));
   const records: EvidenceRecord[] = [];
   const now = new Date().toISOString();
   const domainCount = new Map<string, number>();
@@ -332,6 +345,7 @@ async function readLeads(
     conditionsNote: null,
     countsAsIndependent: false,
     trustedSource: null,
+    sourcePolicy: null,
   });
 
   // 1. Fetch concurrently within the page budget.
@@ -342,7 +356,7 @@ async function readLeads(
     const agentType = TRACK_AGENT[lead.track];
     const { outcome, cached } = await fetchWithCache(lead.url, sensitivity);
     if (!outcome.ok) {
-      records.push({ ...baseRecord(lead), evidenceId: '', provenanceStatus: 'retrieval_failed', failureReason: outcome.reason });
+      records.push({ ...baseRecord(lead), sourcePolicy: leadPolicies.get(hostOf(lead.url)) ?? null, evidenceId: '', provenanceStatus: 'retrieval_failed', failureReason: outcome.reason });
       await logAction(ctx, {
         agentType,
         action: 'retrieval_failed',
@@ -409,6 +423,19 @@ async function readLeads(
   }
   const registry = new Map<string, Awaited<ReturnType<typeof trustedSourceFor>>>();
   for (const p of prepared) registry.set(p.ref, p.kb ? (p.kb.host ? await trustedSourceFor(p.kb.host) : null) : await trustedSourceFor(hostOf(p.page.finalUrl)));
+  // The credibility database's opinion of each site (teacher materials are not websites and have none).
+  const policyHost = (p: Prepared): string | null => (p.kb ? p.kb.host : hostOf(p.page.finalUrl));
+  const preparedPolicies = await policiesFor(prepared.flatMap((p) => (policyHost(p) ? [policyHost(p)!] : [])));
+  const policyOf = (p: Prepared): SourcePolicy | null => (policyHost(p) ? preparedPolicies.get(policyHost(p)!) ?? null : null);
+  const policyLine = (p: Prepared): string[] => {
+    if (p.kb?.scope === 'classroom') return [];
+    const pol = policyOf(p);
+    return [
+      pol
+        ? `credibility policy (a ceiling for your rating): ${pol.tier} credibility, ${pol.use === 'context_only' ? 'CONTEXT ONLY' : 'may be evidence'}. ${pol.note}`
+        : 'credibility policy: none (site not in the database); rate it on its content and do not rate it high',
+    ];
+  };
   const batches: Prepared[][] = [];
   for (let i = 0; i < prepared.length; i += RESEARCH.sourcesPerAssessmentCall) batches.push(prepared.slice(i, i + RESEARCH.sourcesPerAssessmentCall));
 
@@ -432,6 +459,7 @@ async function readLeads(
                 ]
               : []),
             ...(registry.get(b.ref) ? [`listed in the trusted-sources registry as "${registry.get(b.ref)!.name}" (${registry.get(b.ref)!.verificationStatus}); this is a preference signal only and never proves the claim`] : []),
+            ...policyLine(b),
             'PASSAGES:',
             ...b.passages.map((p) => `[${p.id}${p.page ? `, page ${p.page}` : ''}]\n${wrapUntrusted('web_page', p.text, p.id)}`),
           ].join('\n'),
@@ -475,6 +503,7 @@ async function readLeads(
         domain,
         sourceTitle: b.page.title ?? b.lead.title,
         trustedSource,
+        sourcePolicy: b.kb?.scope === 'classroom' ? null : policyOf(b),
       };
       if (!a) {
         // Not assessed (AI-call budget exhausted): keep as retrieved content without a verified excerpt.
@@ -523,7 +552,7 @@ async function readLeads(
           ? `Excerpt verified in the retrieved content${record.excerptLocation ? ` (${record.excerptLocation})` : ''}.`
           : 'The proposed excerpt was not found verbatim in the retrieved content, so it is not shown as a quotation.',
         details: verified
-          ? { kind: 'verified', host: domain, url: b.page.finalUrl, location: record.excerptLocation, evidenceId: null }
+          ? { kind: 'verified', host: domain, url: b.page.finalUrl, location: record.excerptLocation, evidenceId: null, contextOnly: record.sourcePolicy?.use === 'context_only' }
           : { kind: 'not_verbatim', host: domain, url: b.page.finalUrl },
       });
     }
@@ -531,22 +560,25 @@ async function readLeads(
 
   // 4. A few unread leads stay visible as unverified search results (layer A: search_metadata_only).
   const leftover = unread.filter((l) => !toRead.includes(l)).slice(0, 4);
-  for (const l of leftover) records.push({ ...baseRecord(l), evidenceId: '', provenanceStatus: 'search_metadata_only' });
+  for (const l of leftover) records.push({ ...baseRecord(l), sourcePolicy: leadPolicies.get(hostOf(l.url)) ?? null, evidenceId: '', provenanceStatus: 'search_metadata_only' });
 
   for (const r of records) r.evidenceId = nextId();
   await indexing;
   return { records };
 }
 
-/** Independence: distinct domains among verified records that do not merely repeat another source. */
-export function independentCount(records: EvidenceRecord[]): number {
-  return new Set(records.filter((r) => r.provenanceStatus === 'quote_verified' && !r.originalSourceId).map((r) => r.domain)).size;
+/** Independence: distinct domains among verified records that do not merely repeat another source. Context-only sites never count. */
+export function independentCount(records: EvidenceRecord[], attributionClaim = false): number {
+  return new Set(
+    records.filter((r) => r.provenanceStatus === 'quote_verified' && !r.originalSourceId && isEvidenceGrade(r.sourcePolicy, attributionClaim)).map((r) => r.domain),
+  ).size;
 }
 
-function markIndependence(records: EvidenceRecord[]): void {
+function markIndependence(records: EvidenceRecord[], attributionClaim = false): void {
   const seenDomain = new Set<string>();
   for (const r of records) {
-    r.countsAsIndependent = r.provenanceStatus === 'quote_verified' && !r.originalSourceId && !seenDomain.has(r.domain);
+    r.countsAsIndependent =
+      r.provenanceStatus === 'quote_verified' && !r.originalSourceId && isEvidenceGrade(r.sourcePolicy, attributionClaim) && !seenDomain.has(r.domain);
     if (r.countsAsIndependent) seenDomain.add(r.domain);
   }
 }
@@ -592,7 +624,10 @@ export async function runResearchPlan(ctx: StageContext): Promise<StageResult> {
     retrieveForClaim(ctx.gemini(), { queries: [topic.topicStatement, topic.originalText], classroomId, timeSensitivity: sensitivity }),
     tryEmbed(ctx.gemini(), [topic.topicStatement]).then((v) => v?.[0] ?? null),
   ]);
-  const webSkipped = kbLooksStrong(kbSources, budget.targetIndependentSources);
+  // Stored pages from context-only sites (Wikipedia) cannot satisfy the target, so they never justify skipping the web.
+  const kbPolicies = await policiesFor(kbSources.flatMap((s) => (s.host ? [s.host] : [])));
+  const kbEvidence = kbSources.filter((s) => !s.host || isEvidenceGrade(kbPolicies.get(s.host), claim.attributionClaim ?? false));
+  const webSkipped = kbLooksStrong(kbEvidence, budget.targetIndependentSources);
   const publicFound = kbSources.filter((s) => s.scope === 'public').map((s) => `- ${s.title ?? s.host} (${s.domain})`).join('\n');
   let plan: ResearchState['plan'] = [];
   if (!webSkipped) {
@@ -651,7 +686,7 @@ export async function runResearchRead(ctx: StageContext): Promise<StageResult> {
   const state = await loadState(claim.claimId);
   const existing = await loadEvidence(claim.claimId);
   const { records } = await readLeads(ctx, topic, state, budgetFor(claim, ctx.job.deep), existing);
-  markIndependence([...existing, ...records]);
+  markIndependence([...existing, ...records], claim.attributionClaim ?? false);
   state.used.aiCalls += ctx.counter.aiCalls;
   return {
     outputRef: `evidence:${records.length}`,
@@ -664,15 +699,21 @@ export async function runResearchRead(ctx: StageContext): Promise<StageResult> {
 }
 
 /** Sufficient = enough direct, reliable, independent verified evidence (PART 9.6). */
-export function isSufficient(records: EvidenceRecord[], target: number): boolean {
+export function isSufficient(records: EvidenceRecord[], target: number, attributionClaim = false): boolean {
   const strong = records.filter(
-    (r) => r.provenanceStatus === 'quote_verified' && r.directness === 'direct' && r.qualityAssessment?.credibility.rating !== 'low' && !r.originalSourceId,
+    (r) =>
+      r.provenanceStatus === 'quote_verified' &&
+      r.directness === 'direct' &&
+      !r.originalSourceId &&
+      isEvidenceGrade(r.sourcePolicy, attributionClaim) &&
+      effectiveTier(r.sourcePolicy, r.qualityAssessment?.credibility.rating, attributionClaim) !== 'low',
   );
   return new Set(strong.map((r) => r.domain)).size >= target;
 }
 
 export async function runResearchRefine(ctx: StageContext): Promise<StageResult> {
   const claim = ctx.claim!;
+  const attributionClaim = claim.attributionClaim ?? false;
   const topic = await loadTopic(claim);
   const state = await loadState(claim.claimId);
   const budget = budgetFor(claim, ctx.job.deep);
@@ -682,7 +723,7 @@ export async function runResearchRefine(ctx: StageContext): Promise<StageResult>
   const searchesLeft = budget.maxSearches - state.used.searches;
   const pagesLeft = budget.maxPagesFetched - state.used.pages;
   const aiLeft = budget.maxAiCalls - state.used.aiCalls;
-  if (isSufficient(existing, budget.targetIndependentSources)) {
+  if (isSufficient(existing, budget.targetIndependentSources, attributionClaim)) {
     state.stopReason = 'sufficient';
   } else if (searchesLeft <= 0 || pagesLeft <= 0 || aiLeft <= 2) {
     state.stopReason = 'budget_exhausted';
@@ -700,8 +741,8 @@ export async function runResearchRefine(ctx: StageContext): Promise<StageResult>
     } else {
       added = (await readLeads(ctx, topic, state, budget, existing)).records;
       const all = [...existing, ...added];
-      markIndependence(all);
-      state.stopReason = isSufficient(all, budget.targetIndependentSources)
+      markIndependence(all, attributionClaim);
+      state.stopReason = isSufficient(all, budget.targetIndependentSources, attributionClaim)
         ? 'sufficient'
         : added.some((r) => r.provenanceStatus === 'quote_verified')
           ? 'budget_exhausted'
@@ -711,8 +752,11 @@ export async function runResearchRefine(ctx: StageContext): Promise<StageResult>
   state.used.aiCalls += ctx.counter.aiCalls;
 
   const all = [...existing, ...added];
-  markIndependence(all);
-  const verified = all.filter((r) => r.provenanceStatus === 'quote_verified').length;
+  markIndependence(all, attributionClaim);
+  // Context-only sites (social networks, blogs, file sharing, Wikipedia, known disinformation) can be quoted but never decide a verdict.
+  const quoted = all.filter((r) => r.provenanceStatus === 'quote_verified');
+  const verified = quoted.filter((r) => isEvidenceGrade(r.sourcePolicy, attributionClaim)).length;
+  const contextOnly = quoted.length - verified;
   const reasonText: Record<string, string> = {
     sufficient: 'Stopped: direct, reliable, independent evidence covers the claim.',
     budget_exhausted: 'Stopped: the research budget is exhausted.',
@@ -722,12 +766,16 @@ export async function runResearchRefine(ctx: StageContext): Promise<StageResult>
     agentType: 'researcher',
     action: 'research_stopped',
     queryOrUrl: topic.topicStatement,
-    resultSummary: `${reasonText[state.stopReason!]} ${verified} source(s) with verified excerpts, ${independentCount(all)} independent.`,
-    details: { kind: 'stopped', stopReason: state.stopReason, verified, independent: independentCount(all) },
+    resultSummary: `${reasonText[state.stopReason!]} ${verified} source(s) with verified excerpts, ${independentCount(all, attributionClaim)} independent.${contextOnly ? ` ${contextOnly} more are context only and cannot decide the verdict.` : ''}`,
+    details: { kind: 'stopped', stopReason: state.stopReason, verified, independent: independentCount(all, attributionClaim), contextOnly },
   });
 
-  // Fail closed: zero quote_verified evidence means no verdict (PART 0.5 rule 5).
+  // Fail closed: zero quote_verified evidence from sources that can be evidence means no verdict (PART 0.5 rule 5).
   const failed = verified === 0;
+  const failMessage =
+    contextOnly > 0
+      ? 'Only context-only sources (social networks, blogs, file-sharing sites, Wikipedia or known disinformation sites) were found. They cannot decide a verdict.'
+      : 'No usable evidence with a verified excerpt was retrieved.';
   return {
     outputRef: `evidence:${all.length}`,
     apply: (tx) => {
@@ -740,14 +788,14 @@ export async function runResearchRefine(ctx: StageContext): Promise<StageResult>
         ? [
             {
               type: 'stage_failed' as const,
-              summary: 'Research found no usable evidence with a verified excerpt. No verdict can be produced.',
+              summary: `${failMessage} No verdict can be produced.`,
               data: { code: 'RESEARCH_FAILED', willRetry: false },
             },
           ]
         : []),
     ],
     claimOutcome: failed
-      ? { outcome: 'research_failed', failure: { stageKey: ctx.stageKey, code: 'RESEARCH_FAILED', message: 'No usable evidence with a verified excerpt was retrieved.' } }
+      ? { outcome: 'research_failed', failure: { stageKey: ctx.stageKey, code: 'RESEARCH_FAILED', message: failMessage } }
       : undefined,
   };
 }

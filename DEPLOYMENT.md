@@ -64,6 +64,17 @@ The free Render plan sleeps after about 15 minutes without traffic, so the first
 3. Optional: seed Wikipedia articles you choose: `npm run kb:seed -- titles.txt --dry-run`, then without `--dry-run`. One `lang:Title` per line (`hy`, `ru`, `en`). Pick the topics your classes cover; the full Wikipedias are too large for this index.
 4. Rough size: a page is about 10 to 75 passages. 100,000 passages take roughly 400 MB in Firestore and about 25 million embedding tokens once. Each investigation adds one embedding call per claim and one per newly fetched page. The vector query reads up to 30 documents per scope.
 
+## Credibility database setup
+
+The built-in rules need no setup. The imported lists are optional and are written to the `sourceCredibility` collection by hand-run scripts. Set `CREDIBILITY_IMPORT_CONTACT` to a URL or address where the sites can reach you; it is added to the User-Agent, as Wikimedia asks. Each command takes `--dry-run` to show what it would write.
+
+1. `npm run credibility:import -- wikipedia`: the Wikipedia perennial sources list (the main page and its 8 subpages, fetched slowly because Wikimedia rate-limits; allow a few minutes). About 500 host records.
+2. `npm run credibility:import -- doaj`: the Directory of Open Access Journals through its public API, about 24,000 journals at 50 per page, so roughly 480 requests (allow around 10 minutes). Use `--max-pages 3` to try it first, and add `--dry-run` so it writes nothing.
+3. `npm run credibility:import -- euvsdisinfo outlets.txt`: EUvsDisinfo has no bulk export or API, so this reads a file you compile from the database: one outlet per line, as a domain, a URL, or `Name,url`. A CSV with one case per row works too, and repeated hosts are counted. Check the most frequent hosts the script prints before writing.
+4. `npm run credibility:check -- facebook.com https://mess.gov.am/x journal.anau.am` prints what the pipeline will do with a site. Add `--offline` to use only the built-in rules.
+
+A failed or partial download aborts without writing. If a new list is under half the size of the stored one, the script stops and asks for `--force`. Re-import every few months. Results already stored are not recalculated; the new ratings apply to investigations that run afterwards.
+
 ## Cost
 
 The app is designed to stay within free tiers where they exist, but **a $0 operating cost is not guaranteed**. Gemini calls, Google Search grounding, Firestore reads and writes, Storage and hosting may exceed free limits and need billing.

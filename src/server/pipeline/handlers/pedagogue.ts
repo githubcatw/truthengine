@@ -37,7 +37,7 @@ export async function runPedagogue(ctx: StageContext): Promise<StageResult> {
       `JUDGE REASONING: I choose the ${decision.winner === 'DEFENDER' ? 'Defender' : 'Prosecutor'} because ${decision.reasoning}`,
       `ESTABLISHED: ${decision.whatWasEstablished.join(' | ') || 'none'}`,
       `NOT ESTABLISHED: ${decision.whatWasNotEstablished.join(' | ') || 'none'}`,
-      `EVIDENCE:\n${formatEvidence(usable)}`,
+      `EVIDENCE:\n${formatEvidence(usable, claim.attributionClaim ?? false)}`,
       `ARGUMENTS:\n${messages.filter((m) => m.argumentId).map((m) => `${m.argumentId}: ${m.content}`).join('\n')}`,
       languageLock(language),
     ].join('\n\n'),

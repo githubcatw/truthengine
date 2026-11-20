@@ -47,10 +47,25 @@ There is no background worker. Each investigation step runs inside a normal HTTP
 | **Stored passages go through the normal assessor** | A similarity score is not evidence. Keeping the assessment and verbatim-excerpt check means `quote_verified` still means the same thing. | Skipping the web still costs the assessor calls. |
 | **One neutral query, not per-side queries** | An embedding of the claim finds topical text, not text that agrees or disagrees. The assessor labels each source's relation. | When the web search is skipped, the Defender and Prosecutor only argue from what the stored passages contain. They are checked by the sufficiency rule and fall back to the web otherwise. |
 | **Public passages only for `stable` claims, 90 days** | A stale page is the main way this feature could mislead. | Time-sensitive claims get no latency or cost saving. |
-| **Wikipedia counts as one source** | The three language editions are one encyclopedia. | A Wikipedia-only hit never skips the web on its own when two or more sources are needed. |
+| **Wikipedia counts as one source, and is context only** | The three language editions are one encyclopedia, and the source credibility rules treat Wikipedia as context. | Stored Wikipedia pages never skip the web search, because they could not satisfy the target. They are still shown to the assessor as background. |
 | **Separate collections for public and classroom passages** | A query cannot mix them by mistake. | Two vector indexes. |
 | **Teacher materials are never described to the query planner** | Planned queries go to a web search. | The planner cannot avoid duplicating what a material already says. |
 | **Materials: text only, original file not kept** | Less to protect and delete. | Teachers cannot re-download a material from the app. |
+
+## Source credibility
+
+| Choice | Why | Cost |
+|---|---|---|
+| **A database and rules decide the tier, not the model** | A language model rating a site's credibility is an educated guess from memory. A list that people curated can be audited and corrected. | The lists describe outlets, not statements. A reliable outlet can still be wrong, and an unlisted outlet gets no help. |
+| **The model's rating can only lower the tier** | It can notice things a list cannot (a dated page, a publisher that is a party to the dispute). It must not be able to talk a social network up. | A good site with an odd page can be rated down by a mistaken model. |
+| **Unlisted sites are capped at medium** | Only a site someone has vouched for, or one that matches a rule, should ever count as high. | A good unlisted site (for example an Armenian university on `.am`) is medium until it is added to the rules or a list. |
+| **Context-only is enforced at every step** | Ranking sources lower is not enough if they can still be the decisive evidence. It is checked in the independence count, the sufficiency rule, the "unsupported" flag and the Judge validator. | Claims that only have social or wiki coverage end as `research_failed` instead of a verdict. This is intended. |
+| **The "who said what" exception** | A claim such as "the minister said X" is settled by what the minister's own account says, even though that account cannot show X is true. | The extractor model sets the flag. A wrong flag can only let an owner's own account show that something was said. It never makes a social post evidence of a fact. |
+| **Explicit rules beat imported lists; suffix guesses lose to them** | Wikipedia's list rates Wikipedia itself unreliable, but the project chose medium and context only. `.edu` would rate `academia.edu` high, but Wikipedia's list says otherwise. | Two precedence levels to remember. |
+| **Wikipedia: general and current entries decide** | The perennial list splits some sites by topic or period. A topic caveat should not downgrade a whole site. | Topic caveats appear only in the note. |
+| **DOAJ is per host, and can only confirm** | DOAJ lists accepted journals and publishes no list of rejected or removed ones. | A host that serves one DOAJ journal is rated for all its pages. DOAJ cannot lower a journal. |
+| **EUvsDisinfo is imported from a file you compile** | The site has no bulk export and its firewall refuses scripted access to the case search. The importer does not try to get around that. | Someone has to produce the list of outlets. |
+| **Lists are imported by hand and replace one list at a time** | Wikipedia and DOAJ change slowly, and a bad download must not erase good data. | The lists get stale until re-imported. A download that fails part-way aborts, and a list under half the stored size needs `--force`. |
 
 ## Research modes
 

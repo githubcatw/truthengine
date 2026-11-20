@@ -1,0 +1,104 @@
+{{!-- Rows copied unchanged from https://en.wikipedia.org/wiki/Wikipedia:Reliable_sources/Perennial_sources (subpages 1-8), CC BY-SA 4.0, fetched 2026-11-20. Used only to test the parser. --}}
+{| class="wikitable sortable perennial-sources"
+|+ Perennial sources
+
+|- class="s-nc" id="Salon"
+| ''[[Salon.com|Salon]]'' {{WP:RSPSHORTCUT|WP:SALON.COM}}
+| {{WP:RSPSTATUS|nc}}
+| 10{{efn|See these discussions of ''Salon'': [[WP:Reliable sources/Noticeboard/Archive 1#Salon as a source at a BLP related article under ArbComm special standards|1]] [[WP:Reliable sources/Noticeboard/Archive 34#Salon on Rachel Corrie|2]] [[WP:Reliable sources/Noticeboard/Archive 71#The Israeli "art student" mystery article from salon.com|3]] [[WP:Reliable sources/Noticeboard/Archive 200#Salon.com|4]] [[WP:Reliable sources/Noticeboard/Archive 214#Reliability of Salon Newspaper as a Reference on Wikipedia|5]] [[WP:Reliable sources/Noticeboard/Archive 235#Salon Newspaper an Opinion website ?|6]] [[WP:Reliable sources/Noticeboard/Archive 238#Salon Newspaper an Opinion website ?|7]] [[WP:Reliable sources/Noticeboard/Archive 379#Salon.com let misinformation stand for over a year|8]] [[WP:Reliable sources/Noticeboard/Archive 386#Are Salon and Decider RS for film reviews?|9]] [[WP:Reliable sources/Noticeboard/Archive 398#Use of Salon for pseudoscience article (List of cryptids)|10]]
+}}
+| {{WP:RSPLAST|2023}}
+| There is no consensus on the reliability of ''Salon''. Editors consider ''Salon'' [[WP:BIASED|biased or opinionated]], and its statements should be [[WP:INTEXT|attributed]].
+| {{WP:RSPUSES|salon.com}}
+
+|- class="s-gu" id="Scribd"
+| data-sort-value="Scribd" | [[Scribd]] {{WP:RSPSHORTCUT|WP:SCRIBD}}
+| {{WP:RSPSTATUS|gu}}
+| [[WP:Reliable sources/Noticeboard/Archive 33#Is Scribd.com a Reliable Source?|1]] [[WP:Reliable sources/Noticeboard/Archive 151#Court documents hosted on Scribd|2]] [[WP:Reliable sources/Noticeboard/Archive 184#Scribd.com|3]] [[WP:Reliable sources/Noticeboard/Archive 206#Documents uploaded to ScribD|4]]
+| {{WP:RSPLAST|2016|stale=n}}
+| Scribd operates a self-publishing platform for documents and audiobooks. It is considered generally unreliable, especially for [[WP:BLPSPS|biographies of living persons]]. Anyone can upload any document they like and there is no assurance that it hasn't been manipulated. Many documents on Scribd's self-publishing platform violate copyrights, so linking to them from Wikipedia would also violate the [[WP:COPYVIOEL]] guideline and the [[WP:COPYVIO]] policy. If a particular document hosted on the platform is in itself reliable, editors are advised to cite the source without linking to the Scribd entry.
+| {{WP:RSPUSES|scribd.com}}
+
+|- class="s-nc" id="Anadolu Agency"
+| {{anchor|Anadolu Agency (general topics)}} [[Anadolu Agency]] (general topics) <small>(AA)</small> {{WP:RSPSHORTCUT|WP:ANADOLU}}
+| {{WP:RSPSTATUS|nc}}
+| {{rsnl|281|RfC: Anadolu Agency|2019|rfc=y}}
+[[WP:Reliable sources/Noticeboard/Archive 376#Is Anadolu Agency legit source?|1]] [[WP:Reliable sources/Noticeboard/Archive 418#RfC: Anadolu Agency|2]]
+| {{WP:RSPLAST|2023}}
+| The 2019 RfC established no consensus on the reliability of Anadolu Agency. Well-established news outlets are normally considered reliable for statements of fact. However, Anadolu Agency is frequently described as a mouthpiece of the Turkish government that engages in propaganda, owing to its [[State media|state-run]] status.
+| {{WP:RSPUSES|aa.com.tr/en|aa.com.tr}}
+
+|- class="s-gu" id="Anadolu Agency (controversial topics)"
+| [[Anadolu Agency]] (controversial topics, international politics) <small>(AA)</small> {{WP:RSPSHORTCUT|WP:AAPOLITICS}}
+| {{WP:RSPSTATUS|gu}}
+| {{rsnl|281|RfC: Anadolu Agency|2019|rfc=y}}
+| {{WP:RSPLAST|2019|stale=n}}
+| In the 2019 RfC, editors generally agreed that Anadolu Agency is generally unreliable for topics that are controversial or related to international politics.
+| {{WP:RSPUSES|aa.com.tr/en|aa.com.tr}}
+
+|- class="s-gr" id="CNET (pre-October 2020)"
+| ''[[CNET]]'' (pre–October 2020)
+| {{WP:RSPSTATUS|gr}}
+| 17<ref group="lower-alpha">See these discussions of CNET: [[WP:Reliable sources/Noticeboard/Archive 4#GameSpot and CNET|1]] [[WP:Reliable sources/Noticeboard/Archive 24#Media Awareness Network|2]] [[WP:Reliable sources/Noticeboard/Archive 30#AV-comparatives|3]] [[WP:Reliable sources/Noticeboard/Archive 40#Download pages as source for notability?|4]] [[WP:Reliable sources/Noticeboard/Archive 52#Sources for information on the theft|5]] [[WP:Reliable sources/Noticeboard/Archive 63#TorrentFreak|6]] [[WP:Reliable sources/Noticeboard/Archive 66#Rumor sites such as MacRumors and AppleInsider|7]] [[WP:Reliable sources/Noticeboard/Archive 71#Bose References|8]] [[WP:Reliable sources/Noticeboard/Archive 75#National Names Database|9]] [[WP:Reliable sources/Noticeboard/Archive 101#CNET|10]] [[WP:Reliable sources/Noticeboard/Archive 120#TorrentFreak|11]] [[WP:Reliable sources/Noticeboard/Archive 134#The Pirate Bay is said in wiki-voice that it is an commercial website|12]] [[WP:Reliable sources/Noticeboard/Archive 162#Can videos be RS in a BLP?|13]] [[WP:Reliable sources/Noticeboard/Archive 165#Sources at Nokia Lumia 1520|14]] [[WP:Reliable sources/Noticeboard/Archive 180#"Editor Reviews" and affiliate marketing (on CNET)|15]] [[WP:Reliable sources/Noticeboard/Archive 197#TorrentFreak, again|16]] [[WP:Reliable sources/Noticeboard/Archive 398#Beware: CNet running AI-generated articles, byline "CNet Money"|17]]</ref>
+| {{WP:RSPLAST|2023}}
+| ''CNET'' is considered generally reliable for its technology-related articles prior to its acquisition by [[Red Ventures]] in October 2020. In 2023, Red Ventures began deleting thousands of old CNET articles; website content may no longer be available unless archived.<ref>{{Cite news |last=Sato |first=Mia |date=2023-08-09 |title=CNET is deleting old articles to try to improve its Google Search ranking |url=https://www.theverge.com/2023/8/9/23826342/cnet-content-pruning-deleting-articles-google-seo |access-date=2023-08-10 |website=The Verge |language=en-US}}</ref>
+| {{WP:RSPUSES|cnet.com}}
+
+|- class="s-nc" id="CNET (October 2020–October 2022)"
+| ''[[CNET]]'' (October 2020{{snd}}October 2022)
+| {{WP:RSPSTATUS|nc}}
+| [[WP:Reliable sources/Noticeboard/Archive 375#Time to revisit CNET|1]] [[WP:Reliable sources/Noticeboard/Archive 398#Beware: CNet running AI-generated articles, byline "CNet Money"|2]] [[WP:Reliable sources/Noticeboard/Archive 430#RfC: Red Ventures|3]] [[WP:Reliable sources/Noticeboard/Archive 471#Videos by CNET|4]]
+| {{WP:RSPLAST|2025}}
+| ''CNET'' was acquired by digital marketing company [[Red Ventures]] in October 2020, leading to a deterioration in editorial standards. Staff writers were pressured by company executives to publish content more favorably to advertisers in order to benefit Red Ventures' business dealings; this included both news stories and reviews.
+| {{WP:RSPUSES|cnet.com}}
+
+|- class="s-gu" id="CNET (November 2022–present)"
+| <span id="CNET"></span> ''[[CNET]]'' (November 2022{{snd}}present) {{WP:RSPSHORTCUT|WP:CNET}}
+| {{WP:RSPSTATUS|gu}}
+| {{rsnl|430|RfC: Red Ventures|2024|rfc=y}} {{rsnl|471|Videos by CNET|2025|rfc=y}}
+[[WP:Reliable sources/Noticeboard/Archive 398#Beware: CNet running AI-generated articles, byline "CNet Money"|1]] [[WP:Reliable sources/Noticeboard/Archive 453#CNET and ZDNET are now under Ziff Davis ownership. Should they get a new chance or continue be considered too unreliable?|2]] [[WP:Reliable sources/Noticeboard/Archive 485#CNET’s Reliability Status Should Be Reconsidered Ten Months After Ownership Change|3]]
+| {{WP:RSPLAST|2025}}
+| Concerns over ''CNET''{{'}}s advertiser-driven editorial content remain unresolved. Separately, in November 2022, it began deploying an experimental AI tool to rapidly generate articles riddled with factual inaccuracies and affiliate links, with the purpose of increasing [[SEO]] [[Search engine results page|rankings]]. CNET never formally disclosed its use of AI until ''[[Futurism (website)|Futurism]]'' and ''[[The Verge]]'' published reports exposing its actions. An AI tool now announced to be paused wrote more than 70 finance-related articles and published them under the byline "CNET Money Staff", over half of which received corrections after mounting pressure. In August 2024 CNET was purchased by [[Ziff Davis]], which may mean that the reasons for considering it unreliable may no longer apply.
+| {{WP:RSPUSES|cnet.com}}
+
+|- class="s-nc" id="Academic repositories"
+| Academic repositories {{WP:RSPSHORTCUT|WP:ACADREP}}{{WP:RSPSHORTCUT|WP:ACADEMIA.EDU}}{{WP:RSPSHORTCUT|WP:RGATE}}{{WP:RSPSHORTCUT|WP:ZENODO}}
+| {{WP:RSPSTATUS|nc}}
+| 16{{efn|See also these discussions of ''Academia.edu'':
+[[WP:Reliable sources/Noticeboard/Archive 187#academia.edu|1]]
+[[WP:Reliable sources/Noticeboard/Archive 233#Academia.edu|2]]
+[[WP:Reliable sources/Noticeboard/Archive 268#academia.edu|3]]
+[[WP:Reliable sources/Noticeboard/Archive 290#Altered source and academia.edu|4]]
+[[WP:Reliable sources/Noticeboard/Archive 327#Academia.edu|5]]
+[[WP:Reliable sources/Noticeboard/Archive 335#Academia.edu|6]]
+[[WP:Reliable sources/Noticeboard/Archive 341#Is academia.edu a legitimate secondary source, or should it count as UGC?|7]]
+[[WP:Reliable sources/Noticeboard/Archive 433#Articles from Academia.edu|8]]<br/>
+These discussions of ''ResearchGate'':
+[[WP:Reliable sources/Noticeboard/Archive 178#Is ResearchGate reliable?|1]]
+[[WP:Reliable sources/Noticeboard/Archive 184#ResearchGate|2]]
+[[WP:Reliable sources/Noticeboard/Archive 271#DOI: 10.13140|3]]
+[[WP:Reliable sources/Noticeboard/Archive 394#Is Researchgate a reliable source for number of peer reviewed papers?|4]]<br/>
+These discussions of ''Zenodo'':
+[[WP:Reliable sources/Noticeboard/Archive 341#" Research that has not been peer-reviewed is akin to a blog — anyone can publish one online with little expertise."|1]]
+[[WP:Reliable sources/Noticeboard/Archive 435#Indian Research Journal of History and Humanities and Social Sciences|2]]
+}}
+| {{WP:RSPLAST|2024}}
+| General repositories like [[Academia.edu]], [[HAL Open Archives]], [[ResearchGate]], [[Semantic Scholar]], and [[Zenodo]] host academic papers, conference proceedings, book chapters, preprints, technical reports, etc. No filters exist for quality, and several will host unreviewed [[preprint]]s, [[retracted paper]]s not marked as such, unreviewed [[manuscript (publishing)|manuscripts]], and even papers from [[predatory journals]]. Determine the original source of what is being cited to establish reliability. When possible, cite the original source in preference to the repository.
+| {{WP:RSPUSES|academia.edu|researchgate.net|zenodo.org}}
+
+|- class="s-d" id="RT"
+| {{anchor|RT (general topics)|RT (controversial topics)}} [[RT (TV network)|RT]] <small>(Russia Today, ANO TV-Novosti, [[Ruptly]], Redfish, [[Maffick]])</small> {{WP:RSPSHORTCUT|WP:RT.COM}} {{WP:RSPSHORTCUT|WP:RUSSIATODAY}}
+| {{WP:RSPSTATUS|d}}
+| {{rsnl|295|RfC: RT (Russia Today)|2020|rfc=y}}
+[[WP:Reliable sources/Noticeboard/Archive 159#Enquiry concerning the RT Network|1]] [[WP:Reliable sources/Noticeboard/Archive 168#RT news and Crimean status referendum, 2014|2]] [[WP:Reliable sources/Noticeboard/Archive 173#Russia Today|3]] [[WP:Reliable sources/Noticeboard/Archive 192#Attributed statement sourced by RT news article|4]] [[WP:Reliable sources/Noticeboard/Archive 231#RT news|5]] [[WP:Reliable sources/Noticeboard/Archive 253#On Contact / RT|6]] [[WP:Reliable sources/Noticeboard/Archive 370#Ruptly, subsidiary of RT (Russia Today)|7]] [[WP:Reliable sources/Noticeboard/Archive 375#Whitelist RT article on de-Leninization which kicks the State line|8]]
+| {{WP:RSPLAST|2022}}
+| There is consensus that RT is an unreliable source, publishes false or fabricated information, and should be deprecated. Many editors describe RT as a mouthpiece of the Russian government that engages in propaganda and disinformation.
+| {{WP:RSPUSES|rt.com|russiatoday.com|russiatoday.ru|ruptly.tv|redfish.media|rt.rs|actualidad-rt.com|swentr.site|viory.video}}
+<section end="deprecated"/>
+</onlyinclude>
+|}
+
+==Notes==
+{{notelist}}
+==References==
+{{reflist}}

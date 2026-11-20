@@ -7,6 +7,7 @@ import { isVerdictBasisConsistent, verdictForWinner, type DebateMessage, type Ev
 import { agentCall } from '../../agents/call';
 import { JUDGE, languageLock, languageName, render } from '../../agents/prompts';
 import { MAX_OUTPUT_TOKENS, MODELS, TEMPERATURE } from '../../config';
+import { isEvidenceGrade } from '../../../shared/credibility';
 import { evidenceIdError } from '../../validation/contract';
 import { C, col } from '../store';
 import { loadDebateSetup } from '../topic';
@@ -19,6 +20,7 @@ export function validateJudge(
   v: JudgeOutput,
   evidence: EvidenceRecord[],
   argumentIds: Set<string>,
+  attributionClaim = false,
 ): string | null {
   const problems: string[] = [];
   if (v.verdict !== verdictForWinner(v.winner)) problems.push(`winner ${v.winner} requires verdict ${verdictForWinner(v.winner)}`);
@@ -34,6 +36,12 @@ export function validateJudge(
   if (idErr) problems.push(idErr);
   const notVerified = v.decisiveEvidenceIds.filter((id) => evidence.find((e) => e.evidenceId === id)?.provenanceStatus !== 'quote_verified');
   if (notVerified.length) problems.push(`decisive evidence must be quote_verified: ${notVerified.join(', ')}`);
+  // A context-only site (social network, blog, file sharing, Wikipedia, known disinformation) cannot settle the verdict.
+  const contextOnly = v.decisiveEvidenceIds.filter((id) => {
+    const e = evidence.find((x) => x.evidenceId === id);
+    return e && !isEvidenceGrade(e.sourcePolicy, attributionClaim);
+  });
+  if (contextOnly.length) problems.push(`decisive evidence cannot come from context-only sources: ${contextOnly.join(', ')}`);
   const badArgs = [...v.acceptedArgumentIds, ...v.rejectedArguments.map((r) => r.argumentId)].filter((id) => !argumentIds.has(id));
   if (badArgs.length) problems.push(`unknown argument IDs: ${badArgs.join(', ')}`);
   return problems.length ? problems.join('; ') : null;
@@ -73,6 +81,7 @@ export async function runJudge(ctx: StageContext): Promise<StageResult> {
   const challenges = chSnap.docs.map((d) => d.data() as ChallengeDoc);
   const argumentIds = new Set(messages.filter((m) => m.argumentId).map((m) => m.argumentId!));
   const usable = evidence.filter((e) => e.provenanceStatus !== 'retrieval_failed');
+  const attributionClaim = claim.attributionClaim ?? false;
 
   // Bias control: the order of the two positions is randomised.
   const defenderFirst = randomInt(2) === 0;
@@ -86,23 +95,23 @@ export async function runJudge(ctx: StageContext): Promise<StageResult> {
     model: MODELS.judge,
     system: render(JUDGE, { LANGUAGE: languageName(language) }),
     body: [
-      `EVIDENCE RECORDS (layer A provenance, layer B quality, layer C provisional relation):\n${formatEvidence(usable)}`,
+      `EVIDENCE RECORDS (layer A provenance, layer B quality, layer C provisional relation):\n${formatEvidence(usable, attributionClaim)}`,
       ...blocks,
       'Decide the verdict.',
       languageLock(language),
     ].join('\n\n'),
     temperature: TEMPERATURE.judge,
     maxOutputTokens: MAX_OUTPUT_TOKENS.judge,
-    postValidate: (v) => validateJudge(v, usable, argumentIds),
+    postValidate: (v) => validateJudge(v, usable, argumentIds, attributionClaim),
   });
 
   const decisionId = `${claim.claimId}_judge`;
-  const verified = evidence.filter((e) => e.provenanceStatus === 'quote_verified');
+  const verified = evidence.filter((e) => e.provenanceStatus === 'quote_verified' && isEvidenceGrade(e.sourcePolicy, attributionClaim));
   const sourceCounts = {
     total: usable.length,
     organizations: new Set(usable.map((e) => e.sourceOrganization ?? e.domain)).size,
     verified: verified.length,
-    independent: independentCount(evidence),
+    independent: independentCount(evidence, attributionClaim),
   };
   const decision = {
     ...out,

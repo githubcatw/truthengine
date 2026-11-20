@@ -22,6 +22,7 @@ import {
 import { agentCall } from '../../agents/call';
 import { DEFENDER, PROSECUTOR, STEP_INSTRUCTIONS, languageLock, languageName, render } from '../../agents/prompts';
 import { wrapUntrusted } from '../../ai/untrusted';
+import { effectiveTier, isEvidenceGrade } from '../../../shared/credibility';
 import { MAX_OUTPUT_TOKENS, MODELS, TEMPERATURE } from '../../config';
 import { evidenceIdError, excerptLabel, normalizeWhitespace } from '../../validation/contract';
 import { debateSteps, stageKeys } from '../plan';
@@ -57,22 +58,29 @@ export function sentenceCount(text: string): number {
   return text.trim().split(/(?<=[.!?։])\s+(?=[\p{Lu}])/u).filter(Boolean).length;
 }
 
-/** Retrieved content exists for at least one cited record (otherwise: unsupported_assertion). */
-export function isSupported(evidenceIds: string[], byId: Map<string, EvidenceRecord>): boolean {
+/**
+ * Retrieved content exists for at least one cited record (otherwise: unsupported_assertion).
+ * A record from a context-only site does not count, so an argument resting only on social media,
+ * a blog, a file-sharing site or Wikipedia is ignored by the Judge. For a claim about who said what,
+ * a context-only source that speaks for its owner counts.
+ */
+export function isSupported(evidenceIds: string[], byId: Map<string, EvidenceRecord>, attributionClaim = false): boolean {
   return evidenceIds.some((id) => {
     const e = byId.get(id);
-    return e && (e.provenanceStatus === 'quote_verified' || e.provenanceStatus === 'fetched');
+    return e && (e.provenanceStatus === 'quote_verified' || e.provenanceStatus === 'fetched') && isEvidenceGrade(e.sourcePolicy, attributionClaim);
   });
 }
 
-export function positionResearchResult(side: DebateSide, evidence: EvidenceRecord[]): 'found' | 'nothing_found' {
+export function positionResearchResult(side: DebateSide, evidence: EvidenceRecord[], attributionClaim = false): 'found' | 'nothing_found' {
   const want = side === 'defender' ? 'supports' : 'contradicts';
-  return evidence.some((e) => e.foundByAgent === side && e.provenanceStatus === 'quote_verified' && e.provisionalRelation === want)
+  return evidence.some(
+    (e) => e.foundByAgent === side && e.provenanceStatus === 'quote_verified' && e.provisionalRelation === want && isEvidenceGrade(e.sourcePolicy, attributionClaim),
+  )
     ? 'found'
     : 'nothing_found';
 }
 
-export function formatEvidence(evidence: EvidenceRecord[]): string {
+export function formatEvidence(evidence: EvidenceRecord[], attributionClaim = false): string {
   return evidence
     .map((e) => {
       const lines = [
@@ -88,6 +96,16 @@ export function formatEvidence(evidence: EvidenceRecord[]): string {
         lines.push(`  Researcher's PROVISIONAL label: ${e.provisionalRelation}, ${e.directness ?? 'unknown'}; conditions match: ${e.conditionsMatch ?? 'unknown'}${e.conditionsNote ? ` (${e.conditionsNote})` : ''}`);
       }
       if (e.originalSourceId) lines.push(`  repeats primary source: ${e.originalSourceId} (not independent)`);
+      const pol = e.sourcePolicy;
+      if (pol) {
+        const speaks = pol.use === 'context_only' && attributionClaim && pol.attribution;
+        const eff = effectiveTier(pol, e.qualityAssessment?.credibility.rating, attributionClaim);
+        lines.push(
+          `  credibility set by the system (${pol.category}): ${pol.tier}${pol.use === 'context_only' ? (speaks ? ' — CONTEXT ONLY, but speaks for its owner: may show that it was said, never that it is true' : ' — CONTEXT ONLY: background, not evidence that the claim is true') : ''}; effective ${eff}. ${pol.note}`,
+        );
+      } else if (e.urlOrigin !== 'classroom_material') {
+        lines.push('  credibility: unlisted site, capped at medium');
+      }
       if (e.trustedSource) lines.push(`  listed in trusted-sources registry: ${e.trustedSource.name} (${e.trustedSource.verificationStatus}) — not proof of correctness`);
       if (e.provenanceStatus === 'retrieval_failed') lines.push(`  retrieval failed: ${e.failureReason}`);
       if (e.excerpt) lines.push(`  verified excerpt:\n${wrapUntrusted('web_page', e.excerpt, e.evidenceId)}`);
@@ -219,10 +237,11 @@ function buildBody(
   evidence: EvidenceRecord[],
   messages: DebateMessage[],
   challenges: ChallengeDoc[],
+  attributionClaim = false,
 ): string {
-  const parts = [`EVIDENCE (the only sources you may cite):\n${formatEvidence(evidence)}`];
+  const parts = [`EVIDENCE (the only sources you may cite):\n${formatEvidence(evidence, attributionClaim)}`];
   if (step === 'r1_initial') {
-    parts.push(`POSITION_RESEARCH: your position-specific research ${positionResearchResult(side, evidence) === 'found' ? 'found verified evidence for your position' : 'found nothing labelled as supporting your position under the most literal reading; check the evidence for other reasonable readings before conceding'}.`);
+    parts.push(`POSITION_RESEARCH: your position-specific research ${positionResearchResult(side, evidence, attributionClaim) === 'found' ? 'found verified evidence for your position' : 'found nothing labelled as supporting your position under the most literal reading; check the evidence for other reasonable readings before conceding'}.`);
   } else {
     const oppArgs = argumentsOf(messages, opponent(side));
     if (step === 'r2a_challenges' || step === 'r2_challenge_reassess') {
@@ -248,6 +267,7 @@ function toMessages(
   byId: Map<string, EvidenceRecord>,
   orderStart: number,
   challengesForSide: ChallengeDoc[],
+  attributionClaim = false,
 ): { messages: DebateMessage[]; newChallenges: ChallengeDoc[]; responseUpdates: Array<{ challengeId: string; patch: Partial<ChallengeDoc> }> } {
   const roundNumber = STEP_ROUND[step];
   const messages: DebateMessage[] = [];
@@ -281,7 +301,7 @@ function toMessages(
       details: {
         stance: out.stance,
         concessionNote: out.concessionNote,
-        positionResearchResult: positionResearchResult(side, [...byId.values()]),
+        positionResearchResult: positionResearchResult(side, [...byId.values()], attributionClaim),
         evidenceAssessments: out.evidenceAssessments,
       },
     });
@@ -289,7 +309,7 @@ function toMessages(
       push('argument', a.text, {
         argumentId: `${argPrefix(side)}-${i + 1}`,
         referencedEvidenceIds: a.evidenceIds,
-        unsupportedAssertion: !isSupported(a.evidenceIds, byId),
+        unsupportedAssertion: !isSupported(a.evidenceIds, byId, attributionClaim),
       }),
     );
   }
@@ -302,7 +322,7 @@ function toMessages(
       referencedArgumentIds: [c.targetArgumentId],
       referencedEvidenceIds: c.evidenceIds,
       details: { challengeType: c.challengeType },
-      unsupportedAssertion: needsEvidence && !isSupported(c.evidenceIds, byId),
+      unsupportedAssertion: needsEvidence && !isSupported(c.evidenceIds, byId, attributionClaim),
     });
     newChallenges.push({
       challengeId,
@@ -325,7 +345,7 @@ function toMessages(
       referencedArgumentIds: [r.challengeId, ...(ch ? [ch.challengedArgumentId] : [])],
       referencedEvidenceIds: r.evidenceIds,
       details: { accepts: r.accepts },
-      unsupportedAssertion: !r.accepts && r.evidenceIds.length > 0 && !isSupported(r.evidenceIds, byId),
+      unsupportedAssertion: !r.accepts && r.evidenceIds.length > 0 && !isSupported(r.evidenceIds, byId, attributionClaim),
     });
     responseUpdates.push({
       challengeId: r.challengeId,
@@ -363,6 +383,7 @@ export function runDebateStep(step: DebateStep) {
     const { topic, language: debateLanguage } = await loadDebateSetup(claim, ctx.job);
     const evidence = (await loadEvidence(claim.claimId)).filter((e) => e.provenanceStatus !== 'retrieval_failed');
     const byId = new Map(evidence.map((e) => [e.evidenceId, e]));
+    const attributionClaim = claim.attributionClaim ?? false;
     const { messages, challenges } = await loadDebate(topic.debateId);
     const base = { debateId: topic.debateId, claimId: claim.claimId, jobId: ctx.job.jobId, userId: ctx.job.userId };
     const language = languageName(debateLanguage);
@@ -375,7 +396,7 @@ export function runDebateStep(step: DebateStep) {
           schema: schemaFor(step),
           model: MODELS.fast,
           system: render(side === 'defender' ? DEFENDER : PROSECUTOR, { LANGUAGE: language }),
-          body: `${buildBody(step, side, evidence, messages, challenges)}\n\n${languageLock(debateLanguage)}`,
+          body: `${buildBody(step, side, evidence, messages, challenges, attributionClaim)}\n\n${languageLock(debateLanguage)}`,
           temperature: TEMPERATURE.debate,
           maxOutputTokens: MAX_OUTPUT_TOKENS.debate,
           postValidate: (v) => validateSideOutput(step, side, v as Record<string, unknown>, { byId, messages, challenges }),
@@ -389,7 +410,7 @@ export function runDebateStep(step: DebateStep) {
     const newChallenges: ChallengeDoc[] = [];
     const updates: Array<{ challengeId: string; patch: Partial<ChallengeDoc> }> = [];
     for (const o of outputs) {
-      const r = toMessages(step, o.side, o.value, base, byId, order, challenges.filter((c) => c.challengerAgent === opponent(o.side)));
+      const r = toMessages(step, o.side, o.value, base, byId, order, challenges.filter((c) => c.challengerAgent === opponent(o.side)), attributionClaim);
       order += r.messages.length;
       newMessages.push(...r.messages);
       newChallenges.push(...r.newChallenges);

@@ -71,6 +71,8 @@ export interface ClaimDoc {
   ambiguityNote: string | null;
   importance: number;
   splitFrom: string | null;
+  /** The claim is about what someone said ("who said what"): context-only sources that speak for their owner may serve as evidence. Missing on older claims: false. */
+  attributionClaim?: boolean;
   complexityClass: ComplexityClass | null;
   timeSensitivity: TimeSensitivity | null;
   queryLanguages: Language[] | null;

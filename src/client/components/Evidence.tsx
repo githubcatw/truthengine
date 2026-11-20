@@ -23,6 +23,7 @@ export function ProvenanceLabel({ status }: { status: ProvenanceStatus }) {
 export function EvidenceDetails({ e }: { e: EvidenceRecord }) {
   const { t, formatDate } = useI18n();
   const q = e.qualityAssessment;
+  const pol = e.sourcePolicy;
   return (
     <div className="space-y-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
@@ -30,6 +31,7 @@ export function EvidenceDetails({ e }: { e: EvidenceRecord }) {
         <ProvenanceLabel status={e.provenanceStatus} />
         {e.failureReason && <Tag tone="wrong">{t(`fail.${e.failureReason}`)}</Tag>}
         {!e.countsAsIndependent && e.provenanceStatus === 'quote_verified' && <Tag>{t('ev.notIndependent')}</Tag>}
+        {pol?.use === 'context_only' && <Tag tone="prosecutor">{t('cred.contextOnly')}</Tag>}
       </div>
       <p className="font-medium">{e.sourceTitle ?? e.domain}</p>
       <p className="text-muted">
@@ -55,6 +57,19 @@ export function EvidenceDetails({ e }: { e: EvidenceRecord }) {
             {e.snippet}
           </div>
         )
+      )}
+      {e.urlOrigin !== 'classroom_material' && (
+        <p className="text-xs">
+          <span className="font-medium">{t('cred.label')}{t('punct.label')}</span>{' '}
+          {pol ? (
+            <>
+              {t(`quality.${pol.tier}`)} — <span className="text-muted">{t(`cred.cat.${pol.category}`)}</span>
+              {pol.use === 'context_only' && pol.attribution && <span className="text-muted"> · {t('cred.speaks')}</span>}
+            </>
+          ) : (
+            <span className="text-muted">{t('cred.unlisted')}</span>
+          )}
+        </p>
       )}
       {q && (
         <dl className="grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">

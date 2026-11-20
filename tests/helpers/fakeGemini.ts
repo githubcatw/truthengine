@@ -19,6 +19,8 @@ export interface Scenario {
   judgeCitesUnverifiedOnce?: boolean;
   /** OCR: page numbers to report as unreadable. */
   unreadablePages?: number[];
+  /** The extractor marks every claim as being about what someone said ("who said what"). */
+  attributed?: boolean;
   /** Audit candidates returned by the auditor (passages must exist in the document). */
   audit?: { unsourcedFigure?: string; referenceUrl?: { passage: string; url: string } };
 }
@@ -39,8 +41,14 @@ function untrustedBlocks(prompt: string): Array<{ label: string | null; text: st
 
 const sentences = (t: string) => t.split(/(?<=[.!?։])\s+/).map((s) => s.trim()).filter((s) => s.split(/\s+/).length >= 4);
 
+/**
+ * Verified records a compliant model would rely on. Like a real agent following the prompt, the double skips
+ * records marked CONTEXT ONLY unless they are marked as speaking for their owner (a claim about who said what).
+ */
 function verifiedEvidence(prompt: string): Array<{ id: string; text: string }> {
-  const ids = [...prompt.matchAll(/^\[(E\d+)\] Verified excerpt/gm)].map((m) => m[1]!);
+  const ids = [...prompt.matchAll(/^\[(E\d+)\] Verified excerpt[^\n]*\n((?:  [^\n]*\n)*)/gm)]
+    .filter((m) => !m[2]!.includes('CONTEXT ONLY') || m[2]!.includes('speaks for its owner'))
+    .map((m) => m[1]!);
   const blocks = untrustedBlocks(prompt);
   return ids.map((id) => ({ id, text: blocks.find((b) => b.label === id)?.text ?? '' }));
 }
@@ -109,6 +117,7 @@ export function fakeGemini(scenario: Scenario = {}): GeminiClient & { calls: Gen
               population: null,
               importance: 3,
               splitFrom: null,
+              attributedStatement: scenario.attributed ?? false,
             };
           }),
         });

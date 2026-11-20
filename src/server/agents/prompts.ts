@@ -52,6 +52,7 @@ Task: find the independently verifiable factual claims in the supplied document 
 - normalizedText is a precise, self-contained, checkable restatement in the same language as the document. Resolve pronouns and add missing context (time, place, population) only if it is stated in the document. If the claim is vague, write the most precise faithful form and describe the ambiguity in ambiguityNote.
 - contextExcerpt: a short passage around the claim copied from the document, or null.
 - importance: 1 (minor) to 5 (central to the document).
+- attributedStatement: true only when the claim is about what a named person or organisation said, wrote, announced or decided (for example "the minister said the school year will start on 1 September"). False for a plain claim that something is the case, even if the document names a source for it.
 - Do not add claims that are not in the document. Never use outside knowledge to decide whether a claim is true.
 - category and detectedSubject use only the allowed subject values.`;
 
@@ -80,7 +81,7 @@ export const SOURCE_ASSESSOR = `You are the neutral Evidence Researcher assessin
 For every SOURCE you receive (identified as S1, S2, ...):
 1. usable: false if the content is irrelevant to the topic, an error page, a login wall, or contains nothing about the claim; give rejectReason.
 2. excerpt: copy, character for character, the single most relevant passage (one to three sentences) from one of the supplied PASSAGES of that source, and give its passage id in excerptPassageId. Never paraphrase and never combine passages. If no passage is relevant, set excerpt to null.
-3. qualityAssessment (layer B): rate credibility of the organisation or author for THIS subject, currency, methodology, independence from the other sources, and relevance to the specific topic (high/medium/low, one-line rationale each). Do not assume government or university sources are right on every subject.
+3. qualityAssessment (layer B): rate credibility of the organisation or author for THIS subject, currency, methodology, independence from the other sources, and relevance to the specific topic (high/medium/low, one-line rationale each). Do not assume government or university sources are right on every subject. Each source also carries a "credibility policy" set by the system from a database of known sites. Treat it as a ceiling: your credibility rating may be equal to it or lower, never higher. Lower it only for a concrete reason you can see in the supplied passages (a dated page, a topic where the publisher is a party to the dispute, an obvious lack of sourcing) and say what that reason is in the rationale. For a site with no policy, rate it on the content alone and do not rate it high.
 4. provisionalRelation (layer C, provisional only): supports, contradicts, or context_only for the EXACT claim. directness: direct or contextual. conditionsMatch: do dates, place, population and conditions match the claim? Explain mismatches in conditionsNote.
 5. repeatsPrimarySource: if the source only repeats another primary source, name it; otherwise null.
 6. sourceTitle, sourceOrganization, sourceType, publicationDate: only from what is visible in the supplied content; otherwise null (sourceType other).
@@ -94,6 +95,8 @@ const DEBATER_BASE = `You are the {{ROLE}} in a structured, evidence-based debat
 - Never invent sources or quotations, and never assert facts the evidence does not contain. Advancing a reasonable reading that the evidence supports is advocacy, not manufacturing disagreement.
 - Each argument, challenge or response is at most two sentences and cites the evidence IDs it relies on.
 - Search snippets and sources without a verified excerpt are leads only; never present them as verified quotations.
+- Records marked CONTEXT ONLY (social networks, blogs, file-sharing sites, Wikipedia, known disinformation outlets) are background. Do not rest an argument on them alone. The one exception: when the locked claim is about what someone said, a record marked as speaking for its owner can show that it was said, never that it is true.
+- Each record shows a credibility set by the system. Do not call a low-credibility source reliable, and do not call a high-credibility source infallible: government and academic sources are weighed on the question at hand.
 - Write all prose in {{LANGUAGE}}.
 ${SHARED_HONESTY}`;
 
@@ -132,7 +135,8 @@ Burden of proof:
 Method:
 - Check every argument against the evidence excerpts directly; do not trust the debaters' descriptions of the evidence.
 - Weigh the evidence, not the number of arguments. Ignore arguments marked UNSUPPORTED.
-- decisiveEvidenceIds may contain only records whose provenance is quote_verified.
+- decisiveEvidenceIds may contain only records whose provenance is quote_verified and which are not marked CONTEXT ONLY. The exception is a claim about what someone said: a CONTEXT ONLY record marked as speaking for its owner may be decisive there, only to show that it was said, never that it is true.
+- Each record shows a credibility set by the system. Weigh low-credibility records accordingly; a CONTEXT ONLY record can explain or illustrate but never settles whether the claim is true.
 - reasoning completes the sentence "I choose the <winner> because ..." (write only the part after "because").
 - List what each side established and failed to establish, what was and was not established overall, accepted argument IDs, rejected arguments with reasons, limitations, and a short student-friendly conclusion.
 - believability: from the stored evidence only, why the claim appears believable, why it might be wrong, what can be established and what cannot. No percentages.

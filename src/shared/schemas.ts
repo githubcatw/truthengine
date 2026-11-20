@@ -1,6 +1,7 @@
 // The single shared Zod schema set used by both client and server.
 // There are exactly two verdicts. Nothing in this file may add a third.
 import { z } from 'zod';
+import { SourcePolicySchema } from './credibility';
 
 // ---------------------------------------------------------------------------
 // Binary verdict (PART 2)
@@ -181,6 +182,8 @@ export const EvidenceRecordSchema = z.object({
   countsAsIndependent: z.boolean(),
   /** Listed in the trusted-sources registry. A preference signal only, never proof of correctness. */
   trustedSource: z.object({ sourceId: z.string(), name: z.string(), verificationStatus: z.enum(['unverified', 'verified_by_admin']) }).nullable(),
+  /** The credibility database's first opinion about this site, set in code. Missing on older records and for unlisted sites. */
+  sourcePolicy: SourcePolicySchema.nullable().optional(),
 });
 export type EvidenceRecord = z.infer<typeof EvidenceRecordSchema>;
 

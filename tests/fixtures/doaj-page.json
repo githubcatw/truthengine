@@ -1,0 +1,72 @@
+{
+ "total": 23766,
+ "page": 1,
+ "pageSize": 3,
+ "next": "https://doaj.org/api/v4/search/journals/*?page=2&pageSize=3",
+ "results": [
+  {
+   "bibjson": {
+    "title": "Medical Laboratory Journal",
+    "eissn": "2538-4449",
+    "pissn": null,
+    "ref": {
+     "journal": "http://mlj.goums.ac.ir/index.php"
+    },
+    "publisher": {
+     "country": "IR",
+     "name": "Golestan University of Medical Sciences"
+    }
+   },
+   "admin": {
+    "ticked": true,
+    "seal": false
+   },
+   "id": "00023bea7c1444e9aa224df27beff895"
+  },
+  {
+   "bibjson": {
+    "title": "Społeczeństwo, Edukacja, Język",
+    "eissn": "2449-7983",
+    "pissn": "2353-1266",
+    "ref": {
+     "journal": "https://czasopismanaukowe.mazowiecka.edu.pl/index.php/sej"
+    },
+    "publisher": {
+     "country": "PL",
+     "name": "Academic Publishing of the Masovian University in Płock"
+    }
+   },
+   "admin": {
+    "ticked": true,
+    "seal": false
+   },
+   "id": "0002ac568e2f4a84a27ddad33e61eca9"
+  },
+  {
+   "bibjson": {
+    "title": "Computational and Experimental Research in Materials and Renewable Energy",
+    "eissn": "2747-173X",
+    "pissn": null,
+    "ref": {
+     "journal": "https://jurnal.unej.ac.id/index.php/CERiMRE"
+    },
+    "publisher": {
+     "country": "ID",
+     "name": "Physics Department, Faculty of Mathematics and Natural Sciences University of Jember"
+    }
+   },
+   "admin": {
+    "ticked": true,
+    "seal": false
+   },
+   "id": "00087d1be705481c92efc11a6dc42b80"
+  },
+  {
+   "bibjson": {
+    "title": "A journal without a homepage",
+    "ref": {}
+   },
+   "admin": {}
+  }
+ ]
+}

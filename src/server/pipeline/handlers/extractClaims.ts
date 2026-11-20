@@ -127,6 +127,7 @@ export async function runExtractClaims(ctx: StageContext): Promise<StageResult> 
       ambiguityNote: c.ambiguityNote,
       importance: c.importance,
       splitFrom: c.splitFrom,
+      attributionClaim: c.attributedStatement,
       complexityClass: null,
       timeSensitivity: null,
       queryLanguages: null,

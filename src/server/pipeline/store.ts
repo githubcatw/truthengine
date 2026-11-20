@@ -31,6 +31,8 @@ export const C = {
   members: 'classroomMembers',
   assignments: 'assignments',
   trustedSources: 'trustedSources',
+  // Imported credibility lists (Wikipedia perennial sources, DOAJ, EUvsDisinfo), one document per origin and host.
+  sourceCredibility: 'sourceCredibility',
   notifications: 'notifications',
   receipts: 'verificationReceipts',
   // Knowledge base. Public and classroom passages live in separate collections so
