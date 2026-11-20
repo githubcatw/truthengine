@@ -24,7 +24,18 @@ export interface RspEntry {
   status: RspStatus;
   hosts: string[];
   summary: string;
+  /** The summary says the outlet is owned, run, controlled or funded by a state. */
+  stateOwned: boolean;
 }
+
+/**
+ * Ownership, control or funding by a state, as the summaries word it ("a German state-owned international broadcaster",
+ * "owned by the government of Hong Kong"). Deliberately not "propaganda" or "pro-government": that describes slant, not
+ * ownership. Public broadcasters are not counted. Checked on the full summary, before it is shortened for display.
+ */
+const STATE_OWNED_RE =
+  /\b(?:(?:state|government)[- ](?:owned|run|controlled|funded|operated)|(?:owned|controlled|funded|run|operated|financed) by (?:the )?(?:[\w'’-]+ ){0,4}(?:government|state|Kremlin|ministry)|state (?:media|broadcaster|news agency))\b/i;
+export const describesStateOwnership = (plainSummary: string) => STATE_OWNED_RE.test(plainSummary);
 
 export interface RspParseResult {
   entries: RspEntry[];
@@ -85,7 +96,13 @@ export function parseRspPage(wikitext: string): RspParseResult {
       continue;
     }
     const summary = /\{\{WP:RSPLAST\|[^}]*\}\}\s*\n\|\s*([\s\S]*?)\n\|\s*\{\{WP:RSPUSES/.exec(block)?.[1] ?? '';
-    result.entries.push({ name: decodeEntities(id), status: status as RspStatus, hosts, summary: plainWikitext(summary) });
+    result.entries.push({
+      name: decodeEntities(id),
+      status: status as RspStatus,
+      hosts,
+      summary: plainWikitext(summary),
+      stateOwned: describesStateOwnership(plainWikitext(summary, 100_000)),
+    });
   }
   return result;
 }
@@ -129,6 +146,8 @@ export function rspRecords(entries: readonly RspEntry[], importedAtMs: number): 
       use: unreliable ? 'context_only' : 'evidence',
       category: entry.status === 'd' || entry.status === 'b' ? 'deprecated' : unreliable ? 'unreliable' : 'other',
       attribution: false,
+      // Ownership is a fact about the outlet: any entry for the host that says so counts, even a topic or period entry.
+      ...(list.some((x) => x.stateOwned) ? { stateOwned: true } : {}),
       note: `Wikipedia editors list "${entry.name}" as ${STATUS_LABEL[entry.status]}.${entry.summary ? ` ${entry.summary}` : ''}${caveats.length ? ` Separate entries with different ratings exist for: ${caveats.join('; ')}.` : ''}`.slice(0, 500),
       sourceUrl: `${RSP_URL}#${encodeURIComponent(entry.name.replace(/ /g, '_'))}`,
       importedAtMs,

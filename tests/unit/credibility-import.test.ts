@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { entryScope, parseRspPage, plainWikitext, rspRecords, rspSubpages } from '../../src/server/research/credibility/importers/wikipedia';
+import { describesStateOwnership, entryScope, parseRspPage, plainWikitext, rspRecords, rspSubpages } from '../../src/server/research/credibility/importers/wikipedia';
 import { doajRecords, parseDoajPage, DOAJ_FIRST_PAGE } from '../../src/server/research/credibility/importers/doaj';
 import { euvsdisinfoRecords, parseOutletFile } from '../../src/server/research/credibility/importers/euvsdisinfo';
 import { resolvePolicy } from '../../src/server/research/credibility/resolve';
@@ -46,6 +46,27 @@ describe('Wikipedia perennial sources importer (real rows)', () => {
   it('the imported record never overrides the project’s explicit choice for Wikipedia itself', () => {
     const imported = [{ ...byHost('scribd.com'), host: 'wikipedia.org', tier: 'low' as const, use: 'context_only' as const }];
     expect(resolvePolicy('en.wikipedia.org', imported)).toMatchObject({ tier: 'medium', origin: 'builtin' });
+  });
+  it('marks outlets the list describes as state-run, from the full summary', () => {
+    expect(byHost('aa.com.tr')).toMatchObject({ stateOwned: true });
+    expect(byHost('salon.com').stateOwned).toBeUndefined();
+    expect(byHost('scribd.com').stateOwned).toBeUndefined();
+  });
+  it('detects ownership, control and funding by a state, not slant', () => {
+    for (const yes of [
+      'Deutsche Welle is a German state-owned international broadcaster.',
+      'Wen Wei Po is a newspaper owned by the government of Hong Kong.',
+      'Al Jazeera is a Qatari state funded news organization.',
+      'The Shanghai United Media Group, which is government-controlled.',
+      'Xinhua is the official state-run press agency.',
+      'It is operated by the Ministry of Defence.',
+    ]) expect(describesStateOwnership(yes), yes).toBe(true);
+    for (const no of [
+      'It engages in pro-government propaganda.',
+      'PBS is a public broadcaster.',
+      'It disseminates Iranian state propaganda and conspiracy theories.',
+      'Founded by a former government minister, it is privately owned.',
+    ]) expect(describesStateOwnership(no), no).toBe(false);
   });
   it('classifies entry names', () => {
     expect(entryScope('Salon')).toMatchObject({ scope: 'general' });

@@ -105,6 +105,24 @@ export const BUILTIN_RULES: BuiltinRule[] = [
   },
 ];
 
+/**
+ * Outlets that are owned or controlled by a state. A marker only: it never changes a tier, because a state-owned
+ * outlet can be accurate (and an independent one wrong). Kept short on purpose: only outlets whose ownership is not in
+ * doubt. The Wikipedia import adds the outlets its list describes as state-owned, state-run or state-funded.
+ */
+export const STATE_OWNED_MEDIA: string[] = [
+  // Russia
+  'rt.com', 'sputniknews.com', 'sputnikglobe.com', 'ria.ru', 'tass.com', 'tass.ru', 'tvzvezda.ru',
+  // China
+  'xinhuanet.com', 'news.cn', 'cgtn.com', 'chinadaily.com.cn', 'globaltimes.cn', 'people.com.cn',
+  // Iran, Belarus, Turkey, Armenia
+  'presstv.ir', 'irna.ir', 'belta.by', 'trt.net.tr', 'armenpress.am',
+];
+
+export function isBuiltinStateOwned(host: string, list: readonly string[] = STATE_OWNED_MEDIA): boolean {
+  return list.some((pattern) => matchesPattern(host, pattern));
+}
+
 // ---------------------------------------------------------------------------
 // Matching
 // ---------------------------------------------------------------------------

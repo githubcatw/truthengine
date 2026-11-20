@@ -25,6 +25,7 @@ const StoredSchema = z.object({
   category: SourceCategorySchema,
   attribution: z.boolean(),
   note: z.string(),
+  stateOwned: z.boolean().optional(),
   sourceUrl: z.string().nullable(),
   importedAtMs: z.number(),
 });

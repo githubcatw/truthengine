@@ -432,7 +432,7 @@ async function readLeads(
     const pol = policyOf(p);
     return [
       pol
-        ? `credibility policy (a ceiling for your rating): ${pol.tier} credibility, ${pol.use === 'context_only' ? 'CONTEXT ONLY' : 'may be evidence'}. ${pol.note}`
+        ? `credibility policy (a ceiling for your rating): ${pol.tier} credibility, ${pol.use === 'context_only' ? 'CONTEXT ONLY' : 'may be evidence'}. ${pol.note}${pol.stateOwned ? ' State-owned media: look for the owner’s interests in how the topic is covered.' : ''}`
         : 'credibility policy: none (site not in the database); rate it on its content and do not rate it high',
     ];
   };

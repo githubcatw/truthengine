@@ -22,6 +22,7 @@ export const SourceCategorySchema = z.enum([
   'social_media',
   'blog_platform',
   'file_sharing',
+  'state_media',
   'disinformation',
   'unreliable',
   'deprecated',
@@ -42,6 +43,11 @@ export const SourcePolicySchema = z.object({
    */
   attribution: z.boolean(),
   origin: PolicyOriginSchema,
+  /**
+   * A known state-owned or state-controlled media outlet. Independent of the tier: it says who owns the
+   * outlet, not whether it is accurate. Missing means "not known to be", never "independent".
+   */
+  stateOwned: z.boolean().optional(),
   /** The rule id or matched host that produced this policy. */
   rule: z.string(),
   /** One plain sentence shown to the agents and in the interface. */

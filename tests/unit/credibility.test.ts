@@ -138,6 +138,31 @@ describe('precedence between rules and imported lists', () => {
   });
 });
 
+describe('state-owned media marker', () => {
+  it('the built-in list marks known outlets, including subdomains, and nothing else', () => {
+    expect(resolvePolicy('rt.com', [])?.stateOwned).toBe(true);
+    expect(resolvePolicy('english.news.cn', [])?.stateOwned).toBe(true);
+    for (const host of ['notrt.com', 'bbc.com', 'mess.gov.am', 'facebook.com', 'example.org']) expect(resolvePolicy(host, [])?.stateOwned, host).toBeUndefined();
+  });
+  it('an outlet known only from the built-in list is marked without changing its cap', () => {
+    expect(resolvePolicy('armenpress.am', [])).toMatchObject({ stateOwned: true, tier: 'medium', use: 'evidence', category: 'state_media', origin: 'builtin' });
+  });
+  it('the marker is separate from the tier: a deprecated outlet stays low and context only, and is also marked', () => {
+    const p = resolvePolicy('rt.com', [stored('rt.com', { tier: 'low', use: 'context_only', category: 'deprecated' })]);
+    expect(p).toMatchObject({ tier: 'low', use: 'context_only', stateOwned: true });
+  });
+  it('a list that calls an outlet state-owned marks it, whatever tier it gets', () => {
+    expect(resolvePolicy('dw.example.org', [stored('dw.example.org', { tier: 'high', stateOwned: true })])).toMatchObject({ tier: 'high', stateOwned: true });
+    expect(resolvePolicy('www.dw.example.org', [stored('dw.example.org', { tier: 'high', stateOwned: true })])?.stateOwned).toBe(true);
+    expect(resolvePolicy('dw.example.org', [stored('dw.example.org', { tier: 'high' })])?.stateOwned).toBeUndefined();
+  });
+  it('the agents are told about it', () => {
+    const e = ev('E1', 'rt.com');
+    expect(formatEvidence([e])).toMatch(/State-owned media: its coverage may reflect its owner/);
+    expect(formatEvidence([ev('E2', 'mess.gov.am')])).not.toMatch(/State-owned media/);
+  });
+});
+
 describe('credibility decisions', () => {
   const low = resolvePolicy('facebook.com', [])!;
   const gov = resolvePolicy('mess.gov.am', [])!;

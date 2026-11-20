@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink, X } from 'lucide-react';
+import { ExternalLink, Landmark, X } from 'lucide-react';
 import type { EvidenceRecord, ProvenanceStatus } from '../../shared/schemas';
 import { api } from '../lib/api';
 import { useI18n } from '../i18n';
@@ -34,6 +34,14 @@ export function EvidenceDetails({ e }: { e: EvidenceRecord }) {
         {pol?.use === 'context_only' && <Tag tone="prosecutor">{t('cred.contextOnly')}</Tag>}
       </div>
       <p className="font-medium">{e.sourceTitle ?? e.domain}</p>
+      {pol?.stateOwned && (
+        <p>
+          <span title={t('cred.stateOwned.hint')} className="inline-flex items-center gap-1 rounded border border-rule px-1.5 py-0.5 text-[11px] text-muted">
+            <Landmark className="h-3 w-3 shrink-0" aria-hidden />
+            {t('cred.stateOwned')}
+          </span>
+        </p>
+      )}
       <p className="text-muted">
         {[e.sourceOrganization, e.domain, e.sourceType, e.publicationDate].filter(Boolean).join(' · ')}
       </p>

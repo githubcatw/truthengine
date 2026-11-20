@@ -101,7 +101,7 @@ export function formatEvidence(evidence: EvidenceRecord[], attributionClaim = fa
         const speaks = pol.use === 'context_only' && attributionClaim && pol.attribution;
         const eff = effectiveTier(pol, e.qualityAssessment?.credibility.rating, attributionClaim);
         lines.push(
-          `  credibility set by the system (${pol.category}): ${pol.tier}${pol.use === 'context_only' ? (speaks ? ' — CONTEXT ONLY, but speaks for its owner: may show that it was said, never that it is true' : ' — CONTEXT ONLY: background, not evidence that the claim is true') : ''}; effective ${eff}. ${pol.note}`,
+          `  credibility set by the system (${pol.category}): ${pol.tier}${pol.use === 'context_only' ? (speaks ? ' — CONTEXT ONLY, but speaks for its owner: may show that it was said, never that it is true' : ' — CONTEXT ONLY: background, not evidence that the claim is true') : ''}; effective ${eff}. ${pol.note}${pol.stateOwned ? ' State-owned media: its coverage may reflect its owner’s interests; weigh it accordingly.' : ''}`,
         );
       } else if (e.urlOrigin !== 'classroom_material') {
         lines.push('  credibility: unlisted site, capped at medium');
